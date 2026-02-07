@@ -10,7 +10,7 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/yourusername/ClimateVision/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/Climate-Vision/ClimateVision/issues)
 2. If not, create a new issue with:
    - Clear, descriptive title
    - Steps to reproduce
@@ -20,7 +20,7 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 ### Suggesting Features
 
-1. Check [Discussions](https://github.com/yourusername/ClimateVision/discussions) for similar ideas
+1. Check [Discussions](https://github.com/Climate-Vision/ClimateVision/discussions) for similar ideas
 2. Create a new discussion or issue describing:
    - The problem you're trying to solve
    - Your proposed solution
@@ -285,7 +285,7 @@ Contributors will be:
 ## Questions?
 
 - Check [Documentation](https://docs.climatevision.org)
-- Search [GitHub Discussions](https://github.com/yourusername/ClimateVision/discussions)
+- Search [GitHub Discussions](https://github.com/Climate-Vision/ClimateVision/discussions)
 - Ask in Discord
 - Email: contribute@climatevision.org
 
