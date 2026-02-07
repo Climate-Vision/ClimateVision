@@ -81,9 +81,9 @@ htmlcov/
 temp/
 tmp/
 
- # Node / Frontend
- node_modules/
- frontend/node_modules/
+# Node / Frontend
+node_modules/
+frontend/node_modules/
 
- # Runtime outputs
- outputs/
+# Runtime outputs
+outputs/
