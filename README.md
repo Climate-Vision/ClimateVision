@@ -449,14 +449,14 @@ if change_map.has_significant_change(threshold=0.05):  # 5% change
 
 ```bash
 # Start the API server
-uvicorn climatevision.api:app --reload --port 8000
+uvicorn climatevision.api.main:app --reload --port 8000
 
 # In another terminal, start the frontend
 cd frontend
 npm install
-npm start
+npm run dev
 
-# Visit http://localhost:3000
+# Visit http://localhost:5173
 ```
 
 ---
