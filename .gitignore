@@ -80,3 +80,10 @@ htmlcov/
 .cache/
 temp/
 tmp/
+
+ # Node / Frontend
+ node_modules/
+ frontend/node_modules/
+
+ # Runtime outputs
+ outputs/
