@@ -706,7 +706,7 @@ We track our progress transparently to demonstrate impact and community engageme
 - **Partner Organizations**: NGOs and institutions using the platform
 - **Research Citations**: Academic papers referencing ClimateVision
 
-All metrics are updated monthly in our [Project Dashboard](https://github.com/yourusername/ClimateVision/wiki/Metrics).
+All metrics are updated monthly in our [Project Dashboard](https://github.com/Climate-Vision/ClimateVision/wiki/Metrics).
 
 ---
 
@@ -728,7 +728,7 @@ Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE
 
 ```bash
 # Fork and clone the repo
-git clone https://github.com/yourusername/ClimateVision.git
+git clone https://github.com/Climate-Vision/ClimateVision.git
 cd ClimateVision
 
 # Create a development branch
@@ -791,7 +791,7 @@ If you use ClimateVision in your research, please cite:
   author = {ClimateVision Contributors},
   title = {ClimateVision: Open-Source AI Platform for Deforestation Monitoring},
   year = {2025},
-  url = {https://github.com/yourusername/ClimateVision},
+  url = {https://github.com/Climate-Vision/ClimateVision},
   version = {0.1.0}
 }
 ```
@@ -818,11 +818,11 @@ Every star helps us reach more people who can benefit from free, open-source for
   <strong>Together, we can protect the world's forests through open-source AI.</strong>
   <br>
   <br>
-  <a href="https://github.com/yourusername/ClimateVision/stargazers">⭐ Star us on GitHub</a>
+  <a href="https://github.com/Climate-Vision/ClimateVision/stargazers">⭐ Star us on GitHub</a>
   ·
   <a href="CONTRIBUTING.md">🤝 Contribute</a>
   ·
-  <a href="https://github.com/yourusername/ClimateVision/issues">🐛 Report Bug</a>
+  <a href="https://github.com/Climate-Vision/ClimateVision/issues">🐛 Report Bug</a>
   ·
   <a href="https://docs.climatevision.org">📖 Documentation</a>
 </p>
