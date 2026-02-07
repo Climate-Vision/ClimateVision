@@ -775,8 +775,8 @@ We thank all contributors, early adopters, and conservation partners who make th
 ## 📞 Contact & Support
 
 - **Website:** [climatevision.org](https://climatevision.org)
-- **GitHub Issues:** [Report bugs or request features](https://github.com/yourusername/ClimateVision/issues)
-- **Discussions:** [Join our community forum](https://github.com/yourusername/ClimateVision/discussions)
+- **GitHub Issues:** [Report bugs or request features](https://github.com/Climate-Vision/ClimateVision/issues)
+- **Discussions:** [Join our community forum](https://github.com/Climate-Vision/ClimateVision/discussions)
 - **Twitter:** [@ClimateVisionAI](https://twitter.com/ClimateVisionAI)
 - **Slack:** [Join our developer community](https://join.slack.com/climatevision)
 
