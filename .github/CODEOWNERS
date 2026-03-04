@@ -1,0 +1,11 @@
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @Oshgig @edoh-Onuh @franchaise @Goldokpa @Godswill-code @femi23 @emekambachu
+
+/docs/ @Oshgig @edoh-Onuh @franchaise @Goldokpa @Godswill-code @femi23 @emekambachu
+/notebooks/ @Oshgig @edoh-Onuh @franchaise @Goldokpa @Godswill-code @femi23 @emekambachu
+/src/ @Oshgig @edoh-Onuh @franchaise @Goldokpa @Godswill-code @femi23 @emekambachu
+/models/ @Goldokpa @Oshgig @franchaise @Godswill-code @emekambachu
+/models_pretrained/ @Goldokpa @Oshgig @Godswill-code @femi23 @emekambachu
+/frontend/ @cutewizzy11 @edoh-Onuh @Goldokpa @emekambachu
+/scripts/ @cutewizzy11 @Oshgig @Goldokpa @emekambachu
