@@ -7,5 +7,4 @@
 - @Godswill-code — Data Science Maintainer
 - @femi23 — Data Science Maintainer
 - @cutewizzy11 — Frontend Maintainer
-- @emekambachu - ML Engineer
-
+- @emekambachu - Machine Learning Engineer
