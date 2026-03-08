@@ -155,7 +155,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: Train U-Net on synthetic data with logging
 
-#### Week 3-4: Initial Model Training (Engineer 1 & 2)
+#### Week 3-4: Initial Model Training (@edoh-Onuh + @emekambachu + @franchaise @Goldokpa)
 **Priority**: MEDIUM  
 **Status**: 🔴 Not Started
 
@@ -167,7 +167,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: >85% accuracy on public dataset
 
-#### Week 3-4: Carbon Estimation (Engineer 3)
+#### Week 3-4: Carbon Estimation (@femi23 + @Oshgig + @Godswill-code + @Goldokpa)
 **Priority**: MEDIUM  
 **Status**: 🔴 Not Started
 
@@ -181,7 +181,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 ### Month 2: Advanced Features (Weeks 5-8)
 
-#### Week 5-6: Change Detection (Engineer 1)
+#### Week 5-6: Change Detection (@Oshgig + @emekambachu + @femi23 + @Goldokpa)
 **Priority**: HIGH  
 **Status**: 🔴 Not Started
 
@@ -193,7 +193,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: F1 > 0.90 on test set
 
-#### Week 5-6: Batch Processing (Engineer 4)
+#### Week 5-6: Batch Processing (@Godswill-code + @franchaise + @Goldokpa)
 **Priority**: HIGH  
 **Status**: 🔴 Not Started
 
@@ -205,7 +205,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: Process 100 images in <5 minutes
 
-#### Week 7-8: API Development (Engineer 4)
+#### Week 7-8: API Development (@Godswill-code + @Goldokpa)
 **Priority**: HIGH  
 **Status**: 🔴 Not Started
 
@@ -218,7 +218,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: API responds in <100ms per request
 
-#### Week 7-8: Model Optimization (Engineer 1 & 3)
+#### Week 7-8: Model Optimization (@edoh-Onuh + @femi23 + @emekambachu + @Goldokpa)
 **Priority**: MEDIUM  
 **Status**: 🔴 Not Started
 
@@ -245,7 +245,7 @@ carbon_loss_tons = calculate_carbon_loss(
 
 **Success Criteria**: Functional web dashboard
 
-#### Week 11-12: Deployment (Engineer 4 + Lead)
+#### Week 11-12: Deployment (@Oshgig + @franchaise + @Goldokpa)
 **Priority**: HIGH  
 **Status**: 🔴 Not Started
 
