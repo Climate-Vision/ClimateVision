@@ -3,7 +3,7 @@
 - @Oshgig — Data Science Maintainer
 - @edoh-Onuh — Data Science Maintainer
 - @franchaise — DS Maintainer
-- @Goldokpa — ML Engineer
+- @Goldokpa — Machine Learning Engineer
 - @Godswill-code — Data Science Maintainer
 - @femi23 — Data Science Maintainer
 - @cutewizzy11 — Frontend Maintainer
