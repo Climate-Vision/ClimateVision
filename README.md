@@ -152,15 +152,15 @@ ClimateVision is built on a modular, scalable architecture designed for producti
 
 **API & Backend:**
 - FastAPI (REST API framework)
-- PostgreSQL + PostGIS (spatial database)
-- Redis (caching and job queue)
-- Celery (asynchronous task processing)
+- SQLite (lightweight embedded database via db.py)
+- Uvicorn (ASGI server)
 
 **Frontend:**
 - React 18+
-- Leaflet (interactive maps)
+- Google Maps JavaScript API (interactive maps with bbox drawing)
 - Recharts (data visualization)
 - TailwindCSS (styling)
+- Vite (build tooling)
 
 **Infrastructure:**
 - Docker & Docker Compose
@@ -362,7 +362,7 @@ Docker (for containerized deployment, optional)
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ClimateVision.git
+git clone https://github.com/Climate-Vision/ClimateVision.git
 cd ClimateVision
 
 # Create virtual environment
@@ -449,7 +449,7 @@ if change_map.has_significant_change(threshold=0.05):  # 5% change
 
 ```bash
 # Start the API server
-uvicorn climatevision.api.main:app --reload --port 8000
+./run_api.sh
 
 # In another terminal, start the frontend
 cd frontend
@@ -466,7 +466,7 @@ npm run dev
 Comprehensive documentation is available at [docs.climatevision.org](https://docs.climatevision.org):
 
 - **[Getting Started Guide](docs/getting-started.md)** - Installation and basic usage
-- **[API Reference](docs/api-reference.md)** - Complete API documentation
+- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Model Documentation](docs/models.md)** - Details on pre-trained models
 - **[Tutorials](docs/tutorials/)** - Step-by-step examples
 - **[Deployment Guide](docs/deployment.md)** - Production deployment instructions
@@ -533,39 +533,80 @@ analyzer.export_report(results, format="pdf", include_plots=True)
 
 ---
 
+## 🆕 Recent Updates (v0.2.0)
+
+### Multi-Climate Analysis Support
+
+ClimateVision now supports multiple climate analysis types beyond deforestation:
+
+| Analysis Type | Status | Description |
+|--------------|--------|-------------|
+| **Deforestation** | ✅ Active | Monitor forest coverage and detect deforestation events |
+| **Arctic Ice Melting** | ✅ Active | Monitor sea ice extent and melting patterns |
+| **Flood Detection** | ✅ Active | Detect and monitor flooding events |
+| **Drought Monitoring** | 🚧 Planned | Monitor vegetation stress and drought conditions |
+| **Wildfire Detection** | 🚧 Planned | Detect active fires and burned areas |
+
+### NGO & Organization Support
+
+New features for conservation organizations:
+
+- **Organization Management** - Register your NGO and get API access
+- **Region Subscriptions** - Monitor specific geographic areas automatically
+- **Automated Alerts** - Receive notifications when changes are detected
+- **Custom Thresholds** - Set alert sensitivity based on your needs
+- **Webhook Integration** - Integrate with your existing systems
+
+### Enhanced Dashboard
+
+- **Visual Result Cards** - Beautiful metric displays with gauges and charts
+- **Analysis Type Selector** - Choose between different climate analyses
+- **Filtering & Search** - Find runs quickly with status and type filters
+- **Grid/List Views** - View run history your way
+- **Interactive Map** - Select regions visually with our SVG-based world map
+
+### API Improvements
+
+- **Analysis Type Parameter** - Specify analysis type in prediction requests
+- **Organization Endpoints** - Full CRUD for NGO management
+- **Subscription System** - Monitor regions automatically
+- **Alert Management** - Create, acknowledge, and track alerts
+
+See the [API Reference](docs/API_REFERENCE.md) for complete documentation.
+
+---
+
 ## 🗺️ Roadmap
 
-### Month 1: Foundation & Core Models (Weeks 1-4) 
-- [ ] Project setup and architecture documentation
-- [ ] Satellite data ingestion pipeline (Sentinel-2, Landsat)
-- [ ] Basic forest segmentation model (U-Net)
-- [ ] Data preprocessing workflows
-- [ ] Initial model training on public datasets
-- [ ] **Community Goal:** 50+ GitHub stars, initial documentation
+### Phase 1: Foundation ✅ Completed
+- [x] Project setup and architecture documentation
+- [x] Satellite data ingestion pipeline (Sentinel-2, Landsat)
+- [x] Basic forest segmentation model (U-Net)
+- [x] Data preprocessing workflows
+- [x] Initial model training framework
+- [x] REST API with FastAPI
 
-### Month 2: Advanced Features & API (Weeks 5-8)
-- [ ] Change detection algorithms implementation
-- [ ] Carbon estimation models
-- [ ] REST API development with FastAPI
-- [ ] Model optimization and performance tuning
-- [ ] Batch processing pipeline
-- [ ] Tutorial notebooks and examples
-- [ ] **Community Goal:** 150+ stars, 10+ forks, first external contributors
+### Phase 2: Multi-Climate Analysis ✅ Completed
+- [x] Extensible analysis type architecture
+- [x] Arctic ice melting analysis
+- [x] Flood detection analysis
+- [x] Organization (NGO) management system
+- [x] Subscription and alert system
+- [x] Enhanced dashboard with visual components
 
-### Month 3: Deployment & Scale (Weeks 9-12)
-- [ ] Web dashboard with interactive maps
-- [ ] Real-time alert notification system
-- [ ] Docker containerization and deployment
-- [ ] Comprehensive documentation and API reference
-- [ ] Case studies and demo applications
-- [ ] Scientific validation and benchmarking
-- [ ] **Community Goal:** 300+ stars, 25+ forks, 5+ active contributors, partnerships with 2-3 NGOs
+### Phase 3: In Progress 🚧
+- [x] Google Maps interactive bbox picker for region selection
+- [x] Recharts integration for analytics and time series
+- [ ] Drought monitoring implementation
+- [ ] Wildfire detection implementation
+- [ ] Mobile-responsive dashboard
 
-### Post-Launch (Month 4+)
-- [ ] Multi-sensor fusion (Radar integration)
+### Phase 4: Future Plans
+- [ ] Multi-sensor fusion (SAR radar integration)
 - [ ] Mobile app for field verification
 - [ ] Integration with UN REDD+ reporting
 - [ ] Global forest monitoring dashboard
+- [ ] Real-time satellite data streaming
 - [ ] Academic paper publication
 
 ---
@@ -810,7 +851,7 @@ If you find ClimateVision useful for your research, conservation work, or just b
 
 Every star helps us reach more people who can benefit from free, open-source forest monitoring!
 
-**Track our growth:** [Star History](https://star-history.com/#yourusername/ClimateVision&Date)
+**Track our growth:** [Star History](https://star-history.com/#Climate-Vision/ClimateVision&Date)
 
 ---
 
