@@ -126,15 +126,15 @@ def download_gee(
         logger.error("rasterio not installed. Run: pip install rasterio")
         sys.exit(1)
 
-    import random, urllib.request, tempfile, os, math
+    import random, urllib.request, tempfile, os
 
     west, south, east, north = bbox
 
-    # GEE getDownloadURL cap: 32768 px per side at 10 m = ~0.82° per tile.
-    # Use 0.5° tiles to stay safely under the limit.
-    TILE_DEG  = 0.5
-    SCALE_M   = 30   # 30 m resolution keeps each tile well under the cap
-                     # and is standard for forest classification tasks
+    # GEE download size limit is 48 MB per request.
+    # At 100 m resolution, a 0.25° tile is ~278x278 px × 5 bands × 4 bytes ≈ 1.5 MB — safe.
+    # 100 m is standard for regional forest classification.
+    TILE_DEG = 0.25
+    SCALE_M  = 100
 
     # Build tile grid
     tiles = []
@@ -143,17 +143,24 @@ def download_gee(
         lon = west
         while lon < east:
             tiles.append((
-                round(lon,             4),
-                round(lat,             4),
-                round(min(lon + TILE_DEG, east),  4),
-                round(min(lat + TILE_DEG, north), 4),
+                round(lon,                        6),
+                round(lat,                        6),
+                round(min(lon + TILE_DEG, east),  6),
+                round(min(lat + TILE_DEG, north), 6),
             ))
             lon += TILE_DEG
         lat += TILE_DEG
 
-    logger.info("Downloading %d tiles (%.1f° each, scale=%dm)…", len(tiles), TILE_DEG, SCALE_M)
+    logger.info("Downloading %d tiles (%.2f° each, scale=%dm)…", len(tiles), TILE_DEG, SCALE_M)
 
     patches: list[tuple[np.ndarray, np.ndarray]] = []
+
+    # Minimal rasterio profile for writing plain GeoTIFF patches
+    base_profile = {
+        "driver": "GTiff",
+        "crs":    "EPSG:4326",
+        "transform": rasterio.transform.from_bounds(west, south, east, north, patch_size, patch_size),
+    }
 
     for ti, (tw, ts, te, tn) in enumerate(tiles):
         if len(patches) >= max_patches:
@@ -217,8 +224,12 @@ def download_gee(
             logger.info("  tile %d/%d  →  %d patches so far", ti + 1, len(tiles), len(patches))
 
         except Exception as exc:
-            logger.warning("  tile %d/%d skipped (%s)", ti + 1, len(tiles), exc)
+            logger.warning("  tile %d/%d skipped: %s", ti + 1, len(tiles), exc)
             continue
+
+    if not patches:
+        logger.error("No patches extracted — check GEE credentials and bbox")
+        sys.exit(1)
 
     logger.info("Extracted %d patches total", len(patches))
 
@@ -234,17 +245,18 @@ def download_gee(
         "test":  patches[n_train + n_val:],
     }
 
-    p = profile.copy()
     for split, split_patches in splits.items():
         (out_dir / split / "images").mkdir(parents=True, exist_ok=True)
         (out_dir / split / "masks").mkdir(parents=True, exist_ok=True)
         for idx, (img_patch, mask_patch) in enumerate(split_patches):
             stem = f"patch_{idx:05d}"
-            p.update(count=4, dtype="float32", height=patch_size, width=patch_size)
-            with rasterio.open(out_dir / split / "images" / f"{stem}.tif", "w", **p) as dst:
+            img_profile = {**base_profile, "count": 4, "dtype": "float32",
+                           "height": patch_size, "width": patch_size}
+            with rasterio.open(out_dir / split / "images" / f"{stem}.tif", "w", **img_profile) as dst:
                 dst.write(img_patch)
-            p.update(count=1, dtype="uint8")
-            with rasterio.open(out_dir / split / "masks" / f"{stem}.tif", "w", **p) as dst:
+            msk_profile = {**base_profile, "count": 1, "dtype": "uint8",
+                           "height": patch_size, "width": patch_size}
+            with rasterio.open(out_dir / split / "masks" / f"{stem}.tif", "w", **msk_profile) as dst:
                 dst.write(mask_patch[np.newaxis])
         logger.info("  %s: %d patches", split, len(split_patches))
 
