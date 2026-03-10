@@ -283,129 +283,51 @@ def run_training(num_epochs=10, batch_size=8, learning_rate=1e-4):
     return model, history
 
 
-def run_inference(model=None):
-    """Run inference on sample satellite data from GEE"""
+def run_inference_script():
+    """Run inference using the shared inference module and save results."""
+    from climatevision.inference import run_inference_from_gee
+
     print("\n" + "=" * 60)
-    print("Running Inference")
+    print("Running Inference (via climatevision.inference module)")
     print("=" * 60)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    bbox = [-62.0, -3.1, -61.8, -2.9]
+    start_date = "2024-01-01"
+    end_date = "2024-12-31"
 
-    # Load model if not provided
-    if model is None:
-        model_path = Path(__file__).parent.parent / 'models' / 'best_model.pth'
-        if model_path.exists():
-            print(f"Loading model from {model_path}")
-            model = UNet(n_channels=4, n_classes=2)
-            checkpoint = torch.load(model_path, map_location=device)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            print(f"Loaded model from epoch {checkpoint['epoch']} (val_loss: {checkpoint['val_loss']:.4f})")
-        else:
-            print("No trained model found. Using untrained model for demo.")
-            model = UNet(n_channels=4, n_classes=2)
+    results = run_inference_from_gee(
+        bbox=bbox, start_date=start_date, end_date=end_date
+    )
 
-    model = model.to(device)
-    model.eval()
+    # Add extra metadata for the standalone script
+    results.setdefault("region", {}).update({
+        "location": "Amazon Rainforest, Brazil",
+        "satellite": "Sentinel-2",
+    })
 
-    # Get sample region info from GEE
-    print("\n[1/3] Querying Google Earth Engine...")
+    # Print summary
+    ndvi = results.get("ndvi_stats", {})
+    inf = results.get("inference", {})
+    print(f"\nNDVI — min: {ndvi.get('NDVI_min', 'N/A')}, "
+          f"mean: {ndvi.get('NDVI_mean', 'N/A')}, "
+          f"max: {ndvi.get('NDVI_max', 'N/A')}")
+    print(f"Forest pixels: {inf.get('forest_pixels', 0):,}")
+    print(f"Forest %: {inf.get('forest_percentage', 0):.2f}")
+    print(f"Mean confidence: {inf.get('mean_confidence', 0):.4f}")
 
-    # Amazon rainforest region
-    bbox = (-62.0, -3.1, -61.8, -2.9)
-    geometry = ee.Geometry.Rectangle(list(bbox))
-
-    collection = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-        .filterBounds(geometry)
-        .filterDate('2024-01-01', '2024-12-31')
-        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
-        .select(['B4', 'B3', 'B2', 'B8']))  # Red, Green, Blue, NIR
-
-    count = collection.size().getInfo()
-    print(f"Found {count} Sentinel-2 images for Amazon region (2024)")
-
-    # Get median composite stats
-    median = collection.median()
-
-    # Calculate NDVI
-    nir = median.select('B8')
-    red = median.select('B4')
-    ndvi = nir.subtract(red).divide(nir.add(red)).rename('NDVI')
-
-    # Get NDVI statistics
-    ndvi_stats = ndvi.reduceRegion(
-        reducer=ee.Reducer.mean().combine(ee.Reducer.minMax(), sharedInputs=True),
-        geometry=geometry,
-        scale=100,
-        maxPixels=1e9
-    ).getInfo()
-
-    print(f"\nNDVI Statistics for region:")
-    print(f"  Mean: {ndvi_stats.get('NDVI_mean', 'N/A'):.4f}" if ndvi_stats.get('NDVI_mean') else "  Mean: N/A")
-    print(f"  Min:  {ndvi_stats.get('NDVI_min', 'N/A'):.4f}" if ndvi_stats.get('NDVI_min') else "  Min: N/A")
-    print(f"  Max:  {ndvi_stats.get('NDVI_max', 'N/A'):.4f}" if ndvi_stats.get('NDVI_max') else "  Max: N/A")
-
-    # Simulate inference on synthetic data (since we can't easily download GEE images directly)
-    print("\n[2/3] Running model inference...")
-
-    # Create synthetic test image matching satellite characteristics
-    test_image = torch.randn(1, 4, 256, 256).to(device)
-
-    with torch.no_grad():
-        output = model(test_image)
-        predictions = torch.argmax(output, dim=1)
-        probabilities = torch.softmax(output, dim=1)
-
-    # Calculate statistics
-    forest_pixels = (predictions == 1).sum().item()
-    total_pixels = predictions.numel()
-    forest_percentage = (forest_pixels / total_pixels) * 100
-
-    print(f"\nInference Results:")
-    print(f"  Image size: 256x256 pixels")
-    print(f"  Forest pixels: {forest_pixels:,}")
-    print(f"  Non-forest pixels: {total_pixels - forest_pixels:,}")
-    print(f"  Forest coverage: {forest_percentage:.2f}%")
-
-    # Confidence statistics
-    max_probs = probabilities.max(dim=1).values
-    print(f"\nPrediction Confidence:")
-    print(f"  Mean confidence: {max_probs.mean().item():.4f}")
-    print(f"  Min confidence: {max_probs.min().item():.4f}")
-    print(f"  Max confidence: {max_probs.max().item():.4f}")
-
-    # Save inference results
-    print("\n[3/3] Saving results...")
-    output_dir = Path(__file__).parent.parent / 'outputs'
+    # Save results
+    output_dir = Path(__file__).parent.parent / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    results = {
-        'region': {
-            'bbox': bbox,
-            'location': 'Amazon Rainforest, Brazil',
-            'satellite': 'Sentinel-2',
-            'date_range': '2024-01-01 to 2024-12-31',
-            'images_available': count
-        },
-        'ndvi_stats': ndvi_stats,
-        'inference': {
-            'image_size': [256, 256],
-            'forest_pixels': forest_pixels,
-            'non_forest_pixels': total_pixels - forest_pixels,
-            'forest_percentage': forest_percentage,
-            'mean_confidence': float(max_probs.mean().item()),
-        }
-    }
-
-    with open(output_dir / 'inference_results.json', 'w') as f:
+    out_path = output_dir / "inference_results.json"
+    with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
-
-    print(f"Results saved to: {output_dir / 'inference_results.json'}")
+    print(f"\nResults saved to: {out_path}")
 
     print("\n" + "=" * 60)
     print("Inference complete!")
     print("=" * 60)
 
-    return predictions, probabilities
+    return results
 
 
 if __name__ == "__main__":
@@ -413,7 +335,7 @@ if __name__ == "__main__":
     model, history = run_training(num_epochs=10, batch_size=8, learning_rate=1e-4)
 
     # Run inference
-    predictions, probabilities = run_inference(model)
+    results = run_inference_script()
 
     print("\n" + "=" * 60)
     print("ClimateVision Pipeline Complete!")
