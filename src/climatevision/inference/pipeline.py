@@ -383,12 +383,20 @@ def _try_gee_ndvi(
     """Attempt GEE NDVI query. Returns (ndvi_stats_or_None, image_count)."""
     try:
         import ee  # lazy import
-
-        # Try to initialise; uses default credentials or GEE_PROJECT_ID
         import os
 
-        project = os.getenv("GEE_PROJECT_ID")
-        if project:
+        project     = os.getenv("GEE_PROJECT_ID")
+        svc_account = os.getenv("GEE_SERVICE_ACCOUNT")
+        key_file    = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
+
+        # Resolve relative key path against project root
+        if key_file and not os.path.isabs(key_file):
+            key_file = str(_PROJECT_ROOT / key_file)
+
+        if svc_account and key_file and os.path.exists(key_file):
+            credentials = ee.ServiceAccountCredentials(svc_account, key_file)
+            ee.Initialize(credentials)
+        elif project:
             ee.Initialize(project=project)
         else:
             ee.Initialize()
