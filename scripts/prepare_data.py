@@ -99,7 +99,21 @@ def download_gee(
         sys.exit(1)
 
     try:
-        ee.Initialize()
+        import os
+        svc_account = os.getenv("GEE_SERVICE_ACCOUNT")
+        key_file    = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
+        project     = os.getenv("GEE_PROJECT_ID")
+
+        if key_file and not os.path.isabs(key_file):
+            key_file = str(PROJECT_ROOT / key_file)
+
+        if svc_account and key_file and os.path.exists(key_file):
+            credentials = ee.ServiceAccountCredentials(svc_account, key_file)
+            ee.Initialize(credentials)
+        elif project:
+            ee.Initialize(project=project)
+        else:
+            ee.Initialize()
     except Exception as exc:
         logger.error("GEE auth failed: %s", exc)
         logger.error("Run: earthengine authenticate")
