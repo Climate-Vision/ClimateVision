@@ -1,0 +1,62 @@
+# ============================================================
+# ClimateVision — Forest Segmentation Training Config
+# ============================================================
+# Usage:
+#   python scripts/train.py --config config/train.yaml
+#
+# All paths are relative to the project root unless absolute.
+# ============================================================
+
+# --- Data --------------------------------------------------
+data:
+  dir: data/processed          # root with train/ val/ test/ splits
+  image_size: 256              # spatial crop size (pixels)
+  batch_size: 16
+  num_workers: 4
+  use_weighted_sampler: true   # oversample forest-rich patches
+  pin_memory: true
+
+# --- Model -------------------------------------------------
+model:
+  architecture: attention_unet  # "unet" | "attention_unet"
+  in_channels: 4                # R, G, B, NIR
+  num_classes: 2                # 0=non-forest, 1=forest
+  bilinear: true                # bilinear up-sampling (UNet only)
+
+# --- Loss --------------------------------------------------
+loss:
+  type: combined                # "combined" | "focal" | "dice" | "lovasz"
+  focal_weight: 0.5             # weight of focal vs dice in combined loss
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  use_class_weights: true       # re-weight by inverse class frequency
+
+# --- Optimiser --------------------------------------------
+optimizer:
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  min_lr: 1.0e-6
+
+# --- Schedule ---------------------------------------------
+schedule:
+  epochs: 100
+  warmup_epochs: 5
+  checkpoint_interval: 10      # save periodic snapshot every N epochs
+
+# --- Regularisation / Tricks ------------------------------
+training:
+  mixed_precision: true        # AMP (CUDA only; ignored on CPU/MPS)
+  grad_clip: 1.0
+  use_ema: true
+  ema_decay: 0.99
+  early_stopping_patience: 15
+
+# --- Outputs ----------------------------------------------
+output:
+  save_dir: models
+  run_name: ""                 # auto-set to timestamp if empty
+
+# --- Normalisation stats ----------------------------------
+# Leave empty to use built-in Sentinel-2 L2A defaults.
+# Set to a JSON file path produced by Sentinel2Normalizer.save().
+normalizer_stats: ""

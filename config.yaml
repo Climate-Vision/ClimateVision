@@ -1,6 +1,121 @@
 # ClimateVision Configuration
+# Multi-Climate Analysis Platform
 
-# Model Configuration
+# ===== Analysis Types Configuration =====
+# Each analysis type can be enabled/disabled and configured independently
+analysis_types:
+  # Deforestation Detection
+  deforestation:
+    enabled: true
+    display_name: "Deforestation Detection"
+    description: "Monitor forest coverage and detect deforestation events"
+    model:
+      architecture: "unet"
+      weights: "models/unet_deforestation.pth"
+      in_channels: 4
+      num_classes: 2
+    bands: ["B04", "B03", "B02", "B08"]  # Red, Green, Blue, NIR
+    classes: ["non_forest", "forest"]
+    thresholds:
+      alert_forest_loss: 5.0        # Alert if >5% forest loss
+      critical_forest_loss: 15.0    # Critical if >15% loss
+      min_forest_coverage: 20.0     # Alert if coverage drops below 20%
+    metrics:
+      - "forest_percentage"
+      - "forest_pixels"
+      - "ndvi_stats"
+      - "carbon_estimation"
+
+  # Arctic Ice Melting
+  ice_melting:
+    enabled: true
+    display_name: "Arctic Ice Melting"
+    description: "Monitor sea ice extent and melting patterns in polar regions"
+    model:
+      architecture: "unet"
+      weights: "models/unet_ice.pth"
+      in_channels: 4
+      num_classes: 3
+    bands: ["B02", "B03", "B04", "B11"]  # Blue, Green, Red, SWIR
+    classes: ["open_water", "sea_ice", "land"]
+    thresholds:
+      alert_ice_loss: 10.0          # Alert if >10% ice loss
+      critical_ice_loss: 25.0       # Critical if >25% loss
+      min_ice_concentration: 15.0   # Alert if concentration below 15%
+      rapid_melt_rate: 5.0          # km²/day threshold
+    metrics:
+      - "ice_percentage"
+      - "ice_extent_km2"
+      - "melt_rate"
+      - "ndsi_stats"
+    # Specific regions for Arctic monitoring
+    default_regions:
+      arctic_ocean: [-180, 66.5, 180, 90]
+      greenland: [-73, 60, -12, 84]
+      antarctica: [-180, -90, 180, -60]
+
+  # Flood Detection
+  flooding:
+    enabled: true
+    display_name: "Flood Detection"
+    description: "Detect and monitor flooding events and affected areas"
+    model:
+      architecture: "unet"
+      weights: "models/unet_flood.pth"
+      in_channels: 3
+      num_classes: 3
+    bands: ["B03", "B08", "B11"]  # Green, NIR, SWIR
+    classes: ["dry_land", "permanent_water", "flooded"]
+    thresholds:
+      alert_flood_area: 5.0         # Alert if >5% area flooded
+      critical_flood_area: 20.0     # Critical if >20% flooded
+      rapid_expansion_rate: 10.0    # % increase per day
+    metrics:
+      - "flooded_percentage"
+      - "flooded_area_km2"
+      - "mndwi_stats"
+
+  # Drought Monitoring
+  drought:
+    enabled: false  # Not yet implemented
+    display_name: "Drought Monitoring"
+    description: "Monitor vegetation stress and drought conditions"
+    model:
+      architecture: "unet"
+      weights: "models/unet_drought.pth"
+      in_channels: 4
+      num_classes: 4
+    bands: ["B04", "B08", "B11", "B12"]  # Red, NIR, SWIR-1, SWIR-2
+    classes: ["normal", "mild_stress", "moderate_stress", "severe_drought"]
+    thresholds:
+      alert_drought_index: 0.3
+      critical_drought_index: 0.6
+    metrics:
+      - "drought_severity_index"
+      - "vegetation_health_index"
+      - "soil_moisture_proxy"
+
+  # Wildfire Detection
+  wildfire:
+    enabled: false  # Not yet implemented
+    display_name: "Wildfire Detection"
+    description: "Detect active fires and burned areas"
+    model:
+      architecture: "unet"
+      weights: "models/unet_wildfire.pth"
+      in_channels: 4
+      num_classes: 3
+    bands: ["B04", "B08", "B11", "B12"]  # Red, NIR, SWIR-1, SWIR-2
+    classes: ["unburned", "burned", "active_fire"]
+    thresholds:
+      fire_radiative_power: 10.0    # MW
+      burned_area_alert: 1.0        # km²
+    metrics:
+      - "burned_area_km2"
+      - "fire_intensity"
+      - "nbr_stats"  # Normalized Burn Ratio
+
+# ===== Default Model Configuration =====
 model:
   architecture: "unet"
   in_channels: 4  # RGB + NIR
@@ -8,7 +123,7 @@ model:
   use_uncertainty: false
   dropout_rate: 0.5
 
-# Training Configuration
+# ===== Training Configuration =====
 training:
   batch_size: 8
   num_epochs: 50
@@ -19,7 +134,7 @@ training:
   checkpoint_interval: 5
   early_stopping_patience: 10
 
-# Data Configuration
+# ===== Data Configuration =====
 data:
   image_size: [256, 256]
   bands: ["Red", "Green", "Blue", "NIR"]
@@ -29,18 +144,27 @@ data:
   val_split: 0.1
   test_split: 0.1
 
-# Satellite Data Sources
+# ===== Satellite Data Sources =====
 satellite:
   sentinel2:
     bands: ["B04", "B03", "B02", "B08"]  # Red, Green, Blue, NIR
+    all_bands: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12"]
     resolution: 10  # meters
     cloud_coverage_max: 20  # percentage
+    revisit_time: 5  # days
   
   landsat8:
     bands: ["B4", "B3", "B2", "B5"]
     resolution: 30  # meters
+    revisit_time: 16  # days
+  
+  modis:
+    bands: ["1", "2", "3", "4", "5", "6", "7"]
+    resolution: 250  # meters (bands 1-2), 500m (3-7)
+    revisit_time: 1  # days
+    use_for: ["ice_melting", "wildfire"]  # Best for large-scale monitoring
 
-# Inference Configuration
+# ===== Inference Configuration =====
 inference:
   batch_size: 4
   threshold: 0.5
@@ -49,23 +173,34 @@ inference:
   device: "cuda"  # cuda or cpu
   num_workers: 4
 
-# MLOps Configuration
+# ===== MLOps Configuration =====
 mlops:
   experiment_tracking: "mlflow"  # mlflow, wandb, or none
   model_registry: "mlflow"
   logging_interval: 10  # log every N batches
   
-# Paths
+# ===== Paths =====
 paths:
   data_dir: "data/"
   models_dir: "models/"
   logs_dir: "logs/"
   outputs_dir: "outputs/"
 
-# API Configuration
+# ===== API Configuration =====
 api:
   host: "0.0.0.0"
   port: 8000
   workers: 4
   timeout: 60
   max_file_size: 100  # MB
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+
+# ===== Organization (NGO) Configuration =====
+organizations:
+  enable_registration: true
+  require_email_verification: false
+  default_alert_channels: ["email"]
+  max_subscriptions_per_org: 10
+  api_rate_limit: 100  # requests per minute
