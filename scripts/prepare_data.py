@@ -126,69 +126,101 @@ def download_gee(
         logger.error("rasterio not installed. Run: pip install rasterio")
         sys.exit(1)
 
-    import random, shutil, urllib.request, tempfile, os
+    import random, urllib.request, tempfile, os, math
 
     west, south, east, north = bbox
-    region = ee.Geometry.Rectangle([west, south, east, north])
 
-    collection = (
-        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-        .filterBounds(region)
-        .filterDate(start, end)
-        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_threshold * 100))
-        .select(["B4", "B3", "B2", "B8"])  # R, G, B, NIR
-    )
+    # GEE getDownloadURL cap: 32768 px per side at 10 m = ~0.82° per tile.
+    # Use 0.5° tiles to stay safely under the limit.
+    TILE_DEG  = 0.5
+    SCALE_M   = 30   # 30 m resolution keeps each tile well under the cap
+                     # and is standard for forest classification tasks
 
-    # Dynamic World forest labels (class 1 = trees)
-    dw = (
-        ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
-        .filterBounds(region)
-        .filterDate(start, end)
-        .select("label")
-        .mode()
-    )
-    forest_mask = dw.eq(1).rename("forest")
-
-    count = collection.size().getInfo()
-    logger.info("Found %d Sentinel-2 scenes", count)
-
-    image    = collection.median().clip(region)
-    combined = image.addBands(forest_mask)
-
-    url = combined.getDownloadURL({
-        "region": region,
-        "scale":  10,
-        "format": "GEO_TIFF",
-    })
-
-    logger.info("Downloading GEE composite…")
-    tmp = tempfile.mktemp(suffix=".tif")
-    urllib.request.urlretrieve(url, tmp)
-
-    with rasterio.open(tmp) as src:
-        full    = src.read()   # (5, H, W)
-        profile = src.profile
-
-    image_data = full[:4].astype(np.float32)
-    mask_data  = (full[4] > 0).astype(np.uint8)
-    _, H, W    = image_data.shape
-
-    # Extract patches
-    patches: list[tuple[np.ndarray, np.ndarray]] = []
-    for y in range(0, H - patch_size + 1, patch_size):
-        for x in range(0, W - patch_size + 1, patch_size):
-            if len(patches) >= max_patches:
-                break
-            patches.append((
-                image_data[:, y:y + patch_size, x:x + patch_size],
-                mask_data[    y:y + patch_size, x:x + patch_size],
+    # Build tile grid
+    tiles = []
+    lat = south
+    while lat < north:
+        lon = west
+        while lon < east:
+            tiles.append((
+                round(lon,             4),
+                round(lat,             4),
+                round(min(lon + TILE_DEG, east),  4),
+                round(min(lat + TILE_DEG, north), 4),
             ))
-        else:
-            continue
-        break
+            lon += TILE_DEG
+        lat += TILE_DEG
 
-    os.unlink(tmp)
-    logger.info("Extracted %d patches", len(patches))
+    logger.info("Downloading %d tiles (%.1f° each, scale=%dm)…", len(tiles), TILE_DEG, SCALE_M)
+
+    patches: list[tuple[np.ndarray, np.ndarray]] = []
+
+    for ti, (tw, ts, te, tn) in enumerate(tiles):
+        if len(patches) >= max_patches:
+            break
+
+        tile_region = ee.Geometry.Rectangle([tw, ts, te, tn])
+
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(tile_region)
+            .filterDate(start, end)
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_threshold * 100))
+            .select(["B4", "B3", "B2", "B8"])
+        )
+
+        dw = (
+            ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
+            .filterBounds(tile_region)
+            .filterDate(start, end)
+            .select("label")
+            .mode()
+        )
+        forest_mask = dw.eq(1).rename("forest")
+
+        try:
+            image    = collection.median().clip(tile_region)
+            combined = image.addBands(forest_mask)
+
+            url = combined.getDownloadURL({
+                "region": tile_region,
+                "scale":  SCALE_M,
+                "format": "GEO_TIFF",
+            })
+
+            tmp = tempfile.mktemp(suffix=".tif")
+            urllib.request.urlretrieve(url, tmp)
+
+            with rasterio.open(tmp) as src:
+                full = src.read()   # (5, H, W)
+
+            os.unlink(tmp)
+
+            if full.shape[0] < 5:
+                continue
+
+            image_data = full[:4].astype(np.float32)
+            mask_data  = (full[4] > 0).astype(np.uint8)
+            _, H, W    = image_data.shape
+
+            for y in range(0, H - patch_size + 1, patch_size):
+                for x in range(0, W - patch_size + 1, patch_size):
+                    if len(patches) >= max_patches:
+                        break
+                    patches.append((
+                        image_data[:, y:y + patch_size, x:x + patch_size],
+                        mask_data[    y:y + patch_size, x:x + patch_size],
+                    ))
+                if len(patches) >= max_patches:
+                    break
+
+            logger.info("  tile %d/%d  →  %d patches so far", ti + 1, len(tiles), len(patches))
+
+        except Exception as exc:
+            logger.warning("  tile %d/%d skipped (%s)", ti + 1, len(tiles), exc)
+            continue
+
+    logger.info("Extracted %d patches total", len(patches))
 
     # Shuffle + split
     random.seed(42)
