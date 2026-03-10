@@ -9,11 +9,12 @@ __version__ = "0.1.0"
 __author__ = "ClimateVision Contributors"
 __license__ = "MIT"
 
-# Core imports will be added as modules are developed
-from .models import *  # noqa
-from .data import *  # noqa
-from .inference import *  # noqa
+# Lazy imports to avoid loading torch/heavy deps when only API is used
+__all__ = ["__version__", "UNet", "AttentionUNet", "SiameseNetwork"]
 
-__all__ = [
-    "__version__",
-]
+
+def __getattr__(name):
+    if name in ("UNet", "AttentionUNet", "SiameseNetwork"):
+        from .models import UNet, AttentionUNet, SiameseNetwork
+        return {"UNet": UNet, "AttentionUNet": AttentionUNet, "SiameseNetwork": SiameseNetwork}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

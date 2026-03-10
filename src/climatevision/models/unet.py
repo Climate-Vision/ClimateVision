@@ -297,3 +297,8 @@ def get_model(model_name: str = "unet", **kwargs) -> nn.Module:
         raise ValueError(f"Model {model_name} not found. Available models: {list(models.keys())}")
     
     return models[model_name](**kwargs)
+
+
+def create_unet(**kwargs) -> UNet:
+    """Convenience alias used by scripts/train.py."""
+    return UNet(**kwargs)
