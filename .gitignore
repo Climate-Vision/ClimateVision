@@ -87,3 +87,7 @@ frontend/node_modules/
 
 # Runtime outputs
 outputs/
+
+# Service account keys — never commit these
+secrets/
+*.json
