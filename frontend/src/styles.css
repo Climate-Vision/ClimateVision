@@ -3,24 +3,132 @@
 @tailwind utilities;
 
 :root {
+  --color-bg-base: #0a0f0d;
+  --color-bg-surface: #111a14;
+  --color-bg-card: #162019;
+  --color-bg-card-hover: #1c2a1f;
+  --color-border: #1f3024;
+  --color-border-strong: #2d4a33;
+  --color-primary: #22c55e;
+  --color-primary-hover: #16a34a;
+  --color-primary-muted: #14532d;
+  --color-danger: #ef4444;
+  --color-danger-muted: #7f1d1d;
+  --color-warning: #f59e0b;
+  --color-warning-muted: #78350f;
+  --color-info: #3b82f6;
+  --color-text-primary: #f0fdf4;
+  --color-text-secondary: #86efac;
+  --color-text-muted: #4ade80;
+  --color-text-dim: #374151;
+
   color-scheme: dark;
 }
 
-html,
-body {
+html, body {
   height: 100%;
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  background: radial-gradient(1200px 800px at 15% 10%, rgba(34, 197, 94, 0.14), transparent 40%),
-    radial-gradient(900px 700px at 85% 20%, rgba(6, 182, 212, 0.14), transparent 45%),
-    linear-gradient(180deg, #071116, #0b1b23 70%);
-  color: #eef6f9;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-    "Apple Color Emoji", "Segoe UI Emoji";
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
   box-sizing: border-box;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-muted);
+}
+
+/* Date input styling */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(1) saturate(2) hue-rotate(90deg);
+  cursor: pointer;
+}
+
+/* Google Maps autocomplete dropdown */
+.pac-container {
+  background-color: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border-strong) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+  margin-top: 4px;
+}
+.pac-item {
+  color: var(--color-text-primary) !important;
+  border-top: 1px solid var(--color-border) !important;
+  padding: 8px 12px !important;
+  cursor: pointer;
+}
+.pac-item:hover, .pac-item-selected {
+  background-color: var(--color-bg-card-hover) !important;
+}
+.pac-item-query {
+  color: var(--color-text-secondary) !important;
+}
+.pac-matched {
+  color: var(--color-primary) !important;
+}
+
+/* Recharts */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border) !important;
+}
+.recharts-text {
+  fill: var(--color-text-dim) !important;
+}
+
+/* Animation classes */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-card) 25%,
+    var(--color-bg-card-hover) 50%,
+    var(--color-bg-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}
+.pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
 }
