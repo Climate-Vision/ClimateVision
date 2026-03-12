@@ -168,14 +168,14 @@ def tta_predict(
         Averaged softmax probabilities (N, C, H, W).
     """
     num_augments = min(num_augments, len(_TTA_TRANSFORMS))
-    accum = None
+    accum: torch.Tensor = torch.zeros(1)
 
-    for fwd, inv in zip(_TTA_TRANSFORMS[:num_augments], _TTA_INVERSES[:num_augments]):
+    for i, (fwd, inv) in enumerate(zip(_TTA_TRANSFORMS[:num_augments], _TTA_INVERSES[:num_augments])):
         aug_input = fwd(images)
         logits = model(aug_input)
         probs = F.softmax(logits, dim=1)
         probs = inv(probs)
-        accum = probs if accum is None else accum + probs
+        accum = probs if i == 0 else accum + probs
 
     return accum / num_augments
 

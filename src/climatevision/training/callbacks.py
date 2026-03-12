@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -130,10 +131,10 @@ class MLflowLogger(Callback):
         self.run_name = run_name
         self.tracking_uri = tracking_uri
         self.log_model = log_model
-        self._mlflow = None
-        self._run = None
+        self._mlflow: Optional[ModuleType] = None
+        self._run: Any = None
 
-    def _try_import(self):
+    def _try_import(self) -> bool:
         if self._mlflow is not None:
             return True
         try:
@@ -145,7 +146,7 @@ class MLflowLogger(Callback):
             return False
 
     def on_train_begin(self, state: dict[str, Any]) -> None:
-        if not self._try_import():
+        if not self._try_import() or self._mlflow is None:
             return
         mlflow = self._mlflow
         if self.tracking_uri:
