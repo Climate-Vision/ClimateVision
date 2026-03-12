@@ -87,7 +87,7 @@ def objective(trial, base_cfg: dict, data_dir: Path) -> float:
 
     # Data
     try:
-        from climatevision.data.dataset import create_dataloaders
+        from climatevision.data.dataset import create_dataloaders  # type: ignore[import-not-found]
         loaders = create_dataloaders(
             data_dir=data_dir,
             batch_size=batch_size,

@@ -112,13 +112,13 @@ def calculate_segmentation_metrics(pred: torch.Tensor, target: torch.Tensor) -> 
     recall = recall_score(target_flat, pred_flat, average='binary', pos_label=1, zero_division=0)
     
     return {
-        'iou_mean': np.nanmean(iou),
-        'iou_forest': iou[1] if len(iou) > 1 else np.nan,
-        'dice_coefficient': dice,
-        'pixel_accuracy': pixel_acc,
-        'f1_score': f1,
-        'precision': precision,
-        'recall': recall,
+        'iou_mean': float(np.nanmean(iou)),
+        'iou_forest': float(iou[1]) if len(iou) > 1 else float('nan'),
+        'dice_coefficient': float(dice),
+        'pixel_accuracy': float(pixel_acc),
+        'f1_score': float(f1),
+        'precision': float(precision),
+        'recall': float(recall),
     }
 
 

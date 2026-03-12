@@ -17,7 +17,7 @@ from tqdm import tqdm
 import json
 
 # Initialize Earth Engine
-import ee
+import ee  # type: ignore[import-not-found]
 ee.Initialize(project='kinos-473422')
 
 from climatevision.models.unet import UNet
@@ -163,7 +163,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
         pbar.set_postfix({'loss': f'{loss.item():.4f}', 'f1': f'{metrics["f1_score"]:.4f}'})
 
     avg_metrics = {key: np.mean([m[key] for m in all_metrics]) for key in all_metrics[0].keys()}
-    avg_metrics['loss'] = total_loss / len(dataloader)
+    avg_metrics['loss'] = np.float64(total_loss / len(dataloader))
     return avg_metrics
 
 
@@ -188,7 +188,7 @@ def validate(model, dataloader, criterion, device):
             total_loss += loss.item()
 
     avg_metrics = {key: np.mean([m[key] for m in all_metrics]) for key in all_metrics[0].keys()}
-    avg_metrics['loss'] = total_loss / len(dataloader)
+    avg_metrics['loss'] = np.float64(total_loss / len(dataloader))
     return avg_metrics
 
 

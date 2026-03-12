@@ -214,7 +214,7 @@ def load_normalizer(cfg: dict):
     stats_path = cfg.get("normalizer_stats", "")
     if not stats_path:
         return None
-    from climatevision.data.preprocessing import Sentinel2Normalizer
+    from climatevision.data.preprocessing import Sentinel2Normalizer  # type: ignore[import-not-found]
     norm = Sentinel2Normalizer()
     try:
         norm.load(stats_path)
@@ -306,7 +306,7 @@ def main() -> None:
 
     normalizer = load_normalizer(cfg)
 
-    from climatevision.data.dataset import create_dataloaders
+    from climatevision.data.dataset import create_dataloaders  # type: ignore[import-not-found]
     loaders = create_dataloaders(
         data_dir=data_dir,
         batch_size=cfg["data"]["batch_size"],

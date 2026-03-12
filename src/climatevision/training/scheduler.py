@@ -15,6 +15,7 @@ from torch.optim.lr_scheduler import (
     LambdaLR,
     LinearLR,
     SequentialLR,
+    LRScheduler,
     _LRScheduler,
 )
 
@@ -125,7 +126,7 @@ def build_scheduler(
     optimizer: Optimizer,
     scheduler_type: str = "warmup_cosine",
     **kwargs,
-) -> _LRScheduler:
+) -> LRScheduler:
     """
     Build a learning rate scheduler from config.
 

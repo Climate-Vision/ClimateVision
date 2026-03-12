@@ -49,10 +49,11 @@ class FocalLoss(nn.Module):
             logits:  (N, C, H, W) — raw model output
             targets: (N, H, W)    — class indices
         """
+        weight: torch.Tensor = self.class_weights  # type: ignore[assignment]
         ce = F.cross_entropy(
             logits,
             targets,
-            weight=self.class_weights.to(logits.device),
+            weight=weight.to(logits.device),
             ignore_index=self.ignore_index,
             reduction="none",
         )
@@ -128,7 +129,7 @@ class LovaszSoftmaxLoss(nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         probs = F.softmax(logits, dim=1)
-        loss = 0.0
+        loss: torch.Tensor = torch.tensor(0.0, device=logits.device)
         n_classes = probs.shape[1]
         for c in range(n_classes):
             fg = (targets == c).float()
