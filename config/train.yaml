@@ -18,10 +18,12 @@ data:
 
 # --- Model -------------------------------------------------
 model:
-  architecture: attention_unet  # "unet" | "attention_unet"
+  architecture: attention_unet  # "unet" | "attention_unet" | "resnet_unet"
   in_channels: 4                # R, G, B, NIR
   num_classes: 2                # 0=non-forest, 1=forest
   bilinear: true                # bilinear up-sampling (UNet only)
+  backbone: resnet34            # "resnet34" | "resnet50" (resnet_unet only)
+  pretrained: true              # ImageNet pretrained encoder (resnet_unet only)
 
 # --- Loss --------------------------------------------------
 loss:
@@ -47,9 +49,16 @@ schedule:
 training:
   mixed_precision: true        # AMP (CUDA only; ignored on CPU/MPS)
   grad_clip: 1.0
+  gradient_accumulation_steps: 1  # effective batch = batch_size × this
   use_ema: true
   ema_decay: 0.99
   early_stopping_patience: 15
+
+# --- Experiment Tracking ----------------------------------
+tracking:
+  use_mlflow: false            # Log runs to MLflow
+  mlflow_experiment: climatevision
+  mlflow_tracking_uri: ""      # empty = local ./mlruns directory
 
 # --- Outputs ----------------------------------------------
 output:

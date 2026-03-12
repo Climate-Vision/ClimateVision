@@ -161,6 +161,9 @@ def build_model(cfg: dict):
     }
     if arch == "unet":
         kwargs["bilinear"] = mcfg.get("bilinear", True)
+    elif arch == "resnet_unet":
+        kwargs["backbone"] = mcfg.get("backbone", "resnet34")
+        kwargs["pretrained"] = mcfg.get("pretrained", True)
 
     model = get_model(arch, **kwargs)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -345,10 +348,25 @@ def main() -> None:
         "checkpoint_interval":      cfg["schedule"]["checkpoint_interval"],
         "mixed_precision":          cfg["training"]["mixed_precision"],
         "grad_clip":                cfg["training"]["grad_clip"],
+        "gradient_accumulation_steps": cfg["training"].get("gradient_accumulation_steps", 1),
         "use_ema":                  cfg["training"]["use_ema"],
         "ema_decay":                cfg["training"]["ema_decay"],
         "early_stopping_patience":  cfg["training"]["early_stopping_patience"],
     }
+
+    # Build callbacks
+    callbacks = []
+    tracking_cfg = cfg.get("tracking", {})
+    if tracking_cfg.get("use_mlflow", False):
+        from climatevision.training.callbacks import MLflowLogger
+        callbacks.append(MLflowLogger(
+            experiment_name=tracking_cfg.get("mlflow_experiment", "climatevision"),
+            run_name=run_name,
+            tracking_uri=tracking_cfg.get("mlflow_tracking_uri") or None,
+        ))
+
+    from climatevision.training.callbacks import EpochTimer
+    callbacks.append(EpochTimer())
 
     from climatevision.training.trainer import Trainer
     trainer = Trainer(
@@ -357,6 +375,7 @@ def main() -> None:
         loaders=loaders,
         cfg=trainer_cfg,
         save_dir=save_dir,
+        callbacks=callbacks,
     )
 
     # Optional resume
@@ -398,7 +417,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--save-dir",   default=None, help="Override output.save_dir")
     p.add_argument("--run-name",   default=None, help="Override output.run_name")
     p.add_argument("--resume",     default=None, help="Path to checkpoint to resume from")
-    p.add_argument("--arch",       choices=["unet", "attention_unet"], default=None)
+    p.add_argument("--arch",       choices=["unet", "attention_unet", "resnet_unet"], default=None)
     p.add_argument("--no-amp",      action="store_true", help="Disable mixed-precision (AMP)")
     p.add_argument("--num-workers",  type=int, default=None, help="DataLoader worker count (0=main process)")
     p.add_argument("--image-size",   type=int, default=None, help="Spatial crop size in pixels")

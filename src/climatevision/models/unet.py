@@ -277,12 +277,142 @@ class AttentionUNet(nn.Module):
         return torch.argmax(probs, dim=1)
 
 
+class ResNetUNet(nn.Module):
+    """
+    U-Net with a pretrained ResNet encoder for transfer learning.
+
+    Uses a ResNet-34 (or ResNet-50) backbone pretrained on ImageNet as the
+    encoder and a lightweight decoder with skip connections.
+
+    For satellite imagery with more than 3 input channels (e.g. 4 or 13),
+    the first convolutional layer is adapted: the pretrained RGB weights are
+    preserved and extra channels are initialised with the mean of the RGB
+    weights so training starts from a reasonable point.
+
+    Args:
+        n_channels: Number of input bands (e.g. 4 for R,G,B,NIR).
+        n_classes:  Number of output classes.
+        backbone:   ``'resnet34'`` or ``'resnet50'``.
+        pretrained: Load ImageNet weights.
+    """
+
+    def __init__(
+        self,
+        n_channels: int = 4,
+        n_classes: int = 2,
+        backbone: str = "resnet34",
+        pretrained: bool = True,
+    ):
+        super().__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+
+        import torchvision.models as tv
+
+        weights_map = {
+            "resnet34": (tv.resnet34, tv.ResNet34_Weights.DEFAULT if pretrained else None),
+            "resnet50": (tv.resnet50, tv.ResNet50_Weights.DEFAULT if pretrained else None),
+        }
+        if backbone not in weights_map:
+            raise ValueError(f"Unsupported backbone '{backbone}'. Choose from {list(weights_map)}")
+
+        builder, weights = weights_map[backbone]
+        encoder = builder(weights=weights)
+
+        # Adapt first conv for non-3-channel inputs
+        old_conv = encoder.conv1
+        if n_channels != 3:
+            new_conv = nn.Conv2d(
+                n_channels, old_conv.out_channels,
+                kernel_size=old_conv.kernel_size,
+                stride=old_conv.stride,
+                padding=old_conv.padding,
+                bias=False,
+            )
+            with torch.no_grad():
+                # Copy RGB weights and init extra channels with the RGB mean
+                new_conv.weight[:, :3] = old_conv.weight
+                if n_channels > 3:
+                    mean_w = old_conv.weight.mean(dim=1, keepdim=True)
+                    new_conv.weight[:, 3:] = mean_w.expand_as(new_conv.weight[:, 3:])
+            encoder.conv1 = new_conv
+
+        # Encoder stages (ResNet layers)
+        self.enc0 = nn.Sequential(encoder.conv1, encoder.bn1, encoder.relu)  # /2
+        self.pool0 = encoder.maxpool                                          # /4
+        self.enc1 = encoder.layer1                                            # /4
+        self.enc2 = encoder.layer2                                            # /8
+        self.enc3 = encoder.layer3                                            # /16
+        self.enc4 = encoder.layer4                                            # /32
+
+        # Channel counts depend on backbone
+        if backbone == "resnet34":
+            enc_channels = [64, 64, 128, 256, 512]
+        else:  # resnet50
+            enc_channels = [64, 256, 512, 1024, 2048]
+
+        # Decoder
+        self.up4 = _DecoderBlock(enc_channels[4], enc_channels[3], 256)
+        self.up3 = _DecoderBlock(256, enc_channels[2], 128)
+        self.up2 = _DecoderBlock(128, enc_channels[1], 64)
+        self.up1 = _DecoderBlock(64, enc_channels[0], 64)
+
+        # Final upsample (encoder first stride is 2, pool takes to 4)
+        self.final_up = nn.Sequential(
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+        )
+        self.outc = nn.Conv2d(32, n_classes, kernel_size=1)
+
+    def forward(self, x):
+        # Encoder
+        e0 = self.enc0(x)       # /2
+        p0 = self.pool0(e0)     # /4
+        e1 = self.enc1(p0)      # /4
+        e2 = self.enc2(e1)      # /8
+        e3 = self.enc3(e2)      # /16
+        e4 = self.enc4(e3)      # /32
+
+        # Decoder with skip connections
+        d4 = self.up4(e4, e3)   # /16
+        d3 = self.up3(d4, e2)   # /8
+        d2 = self.up2(d3, e1)   # /4
+        d1 = self.up1(d2, e0)   # /2
+        d0 = self.final_up(d1)  # /1
+        return self.outc(d0)
+
+    def predict(self, x):
+        logits = self.forward(x)
+        return F.softmax(logits, dim=1)
+
+    def predict_classes(self, x):
+        return self.predict(x).argmax(dim=1)
+
+
+class _DecoderBlock(nn.Module):
+    """Upsample + concatenate skip + double conv."""
+
+    def __init__(self, in_ch: int, skip_ch: int, out_ch: int):
+        super().__init__()
+        self.up = nn.ConvTranspose2d(in_ch, in_ch // 2, kernel_size=2, stride=2)
+        self.conv = DoubleConv(in_ch // 2 + skip_ch, out_ch)
+
+    def forward(self, x, skip):
+        x = self.up(x)
+        # Pad if spatial dims don't match
+        dy = skip.size(2) - x.size(2)
+        dx = skip.size(3) - x.size(3)
+        x = F.pad(x, [dx // 2, dx - dx // 2, dy // 2, dy - dy // 2])
+        return self.conv(torch.cat([x, skip], dim=1))
+
+
 def get_model(model_name: str = "unet", **kwargs) -> nn.Module:
     """
     Factory function to get model by name
     
     Args:
-        model_name: Name of the model ('unet' or 'attention_unet')
+        model_name: Name of the model ('unet', 'attention_unet', or 'resnet_unet')
         **kwargs: Additional arguments for the model
     
     Returns:
@@ -291,6 +421,7 @@ def get_model(model_name: str = "unet", **kwargs) -> nn.Module:
     models = {
         'unet': UNet,
         'attention_unet': AttentionUNet,
+        'resnet_unet': ResNetUNet,
     }
     
     if model_name not in models:

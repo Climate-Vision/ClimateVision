@@ -27,6 +27,8 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.data import DataLoader
 
+from .callbacks import Callback, CallbackRunner
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,10 +122,12 @@ class Trainer:
         loaders: dict[str, DataLoader],
         cfg: dict[str, Any],
         save_dir: str | Path = "models",
+        callbacks: list[Callback] | None = None,
     ):
         self.cfg      = cfg
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.callback_runner = CallbackRunner(callbacks)
 
         # Device
         self.device = torch.device(
@@ -177,6 +181,7 @@ class Trainer:
         self.n_epochs       = n_epochs
         self.grad_clip      = cfg.get("grad_clip", 1.0)
         self.patience       = cfg.get("early_stopping_patience", 10)
+        self.accum_steps    = cfg.get("gradient_accumulation_steps", 1)
         self.best_iou       = -1.0
         self.epochs_no_imp  = 0
         self.history: dict[str, list] = {"train": [], "val": []}
@@ -185,10 +190,17 @@ class Trainer:
     def fit(self) -> dict[str, list]:
         logger.info("=" * 60)
         logger.info("Starting training for %d epochs", self.n_epochs)
+        if self.accum_steps > 1:
+            logger.info("Gradient accumulation: %d steps (effective batch = %d)",
+                        self.accum_steps, self.accum_steps * self.loaders["train"].batch_size)
         logger.info("=" * 60)
+
+        state = {"cfg": self.cfg, "save_dir": str(self.save_dir)}
+        self.callback_runner.on_train_begin(state)
 
         for epoch in range(1, self.n_epochs + 1):
             t0 = time.time()
+            self.callback_runner.on_epoch_begin(epoch, state)
 
             train_metrics = self._train_epoch(epoch)
             val_metrics   = self._val_epoch(epoch)
@@ -200,6 +212,26 @@ class Trainer:
 
             self.history["train"].append(train_metrics)
             self.history["val"].append(val_metrics)
+
+            # Publish to callbacks
+            lr = self.optimizer.param_groups[0]["lr"]
+            cb_state = {
+                **state,
+                "train_metrics": train_metrics,
+                "val_metrics": val_metrics,
+                "lr": lr,
+                "val_iou_forest": val_metrics.get("iou_forest", 0),
+            }
+            self.callback_runner.on_epoch_end(epoch, cb_state)
+
+            # Check early-stopping callback
+            for cb in self.callback_runner.callbacks:
+                if hasattr(cb, "should_stop") and cb.should_stop:
+                    logger.info("Stopping via callback: %s", type(cb).__name__)
+                    self._save_history()
+                    state["save_dir"] = str(self.save_dir)
+                    self.callback_runner.on_train_end(state)
+                    return self.history
 
             improved = self._checkpoint(epoch, val_metrics)
             if not improved:
@@ -213,6 +245,8 @@ class Trainer:
                 self.epochs_no_imp = 0
 
         self._save_history()
+        state["save_dir"] = str(self.save_dir)
+        self.callback_runner.on_train_end(state)
         logger.info("Training complete. Best val IoU: %.4f", self.best_iou)
         return self.history
 
@@ -224,33 +258,38 @@ class Trainer:
         total_loss = 0.0
         all_metrics: list[dict] = []
 
+        self.optimizer.zero_grad(set_to_none=True)
+
         for batch_idx, (images, masks) in enumerate(loader):
             images = images.to(self.device, non_blocking=True)
             masks  = masks.to(self.device, non_blocking=True)
 
-            self.optimizer.zero_grad(set_to_none=True)
-
             with autocast(enabled=self.use_amp):
                 logits = self.model(images)
                 loss   = self.criterion(logits, masks)
+                if self.accum_steps > 1:
+                    loss = loss / self.accum_steps
 
             self.scaler.scale(loss).backward()
 
-            # Gradient clipping
-            self.scaler.unscale_(self.optimizer)
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+            if (batch_idx + 1) % self.accum_steps == 0 or (batch_idx + 1) == len(loader):
+                # Gradient clipping
+                self.scaler.unscale_(self.optimizer)
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
 
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad(set_to_none=True)
 
-            if self.ema is not None:
-                self.ema.update(self.model)
+                if self.ema is not None:
+                    self.ema.update(self.model)
 
             preds = logits.argmax(dim=1)
+            raw_loss = loss.item() * (self.accum_steps if self.accum_steps > 1 else 1)
             m = _compute_metrics(preds.detach(), masks.detach())
-            m["loss"] = loss.item()
+            m["loss"] = raw_loss
             all_metrics.append(m)
-            total_loss += loss.item()
+            total_loss += raw_loss
 
         keys = list(all_metrics[0].keys())
         return {k: sum(m[k] for m in all_metrics) / len(all_metrics) for k in keys}

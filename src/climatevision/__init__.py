@@ -10,11 +10,16 @@ __author__ = "ClimateVision Contributors"
 __license__ = "MIT"
 
 # Lazy imports to avoid loading torch/heavy deps when only API is used
-__all__ = ["__version__", "UNet", "AttentionUNet", "SiameseNetwork"]
+__all__ = ["__version__", "UNet", "AttentionUNet", "ResNetUNet", "SiameseNetwork"]
 
 
 def __getattr__(name):
-    if name in ("UNet", "AttentionUNet", "SiameseNetwork"):
-        from .models import UNet, AttentionUNet, SiameseNetwork
-        return {"UNet": UNet, "AttentionUNet": AttentionUNet, "SiameseNetwork": SiameseNetwork}[name]
+    if name in ("UNet", "AttentionUNet", "ResNetUNet", "SiameseNetwork"):
+        from .models import UNet, AttentionUNet, ResNetUNet, SiameseNetwork
+        return {
+            "UNet": UNet,
+            "AttentionUNet": AttentionUNet,
+            "ResNetUNet": ResNetUNet,
+            "SiameseNetwork": SiameseNetwork,
+        }[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
