@@ -419,6 +419,47 @@ def create_app() -> FastAPI:
             "runs": [RunRow(**dict(r)) for r in rows],
         }
 
+    @app.get("/api/runs/stats")
+    def get_run_stats() -> dict[str, Any]:
+        """Return aggregated run statistics for dashboard KPI cards."""
+        with get_connection() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+
+            by_status = {
+                row["status"]: row["count"]
+                for row in conn.execute(
+                    "SELECT status, COUNT(*) as count FROM runs GROUP BY status"
+                ).fetchall()
+            }
+
+            by_analysis_type = {
+                row["analysis_type"]: row["count"]
+                for row in conn.execute(
+                    "SELECT analysis_type, COUNT(*) as count FROM runs GROUP BY analysis_type"
+                ).fetchall()
+            }
+
+            recent_completed = conn.execute(
+                "SELECT COUNT(*) FROM runs WHERE status = 'completed' "
+                "AND created_at >= datetime('now', '-7 days')"
+            ).fetchone()[0]
+
+            alerts_total = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+            alerts_unacknowledged = conn.execute(
+                "SELECT COUNT(*) FROM alerts WHERE acknowledged = 0"
+            ).fetchone()[0]
+
+        return {
+            "total_runs": total,
+            "completed_last_7_days": recent_completed,
+            "by_status": by_status,
+            "by_analysis_type": by_analysis_type,
+            "alerts": {
+                "total": alerts_total,
+                "unacknowledged": alerts_unacknowledged,
+            },
+        }
+
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: int) -> dict[str, Any]:
         """Get details for a specific run including results."""
