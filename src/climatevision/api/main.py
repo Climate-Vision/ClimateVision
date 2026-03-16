@@ -386,27 +386,38 @@ def create_app() -> FastAPI:
     @app.get("/api/runs")
     def list_runs(
         limit: int = Query(default=50, le=200),
+        offset: int = Query(default=0, ge=0),
         status: Optional[str] = None,
         analysis_type: Optional[str] = None,
-    ) -> list[RunRow]:
-        """List analysis runs with optional filtering."""
-        query = "SELECT * FROM runs WHERE 1=1"
+    ) -> dict[str, Any]:
+        """List analysis runs with optional filtering and pagination metadata."""
+        where_clauses = ["1=1"]
         params: list = []
-        
+
         if status:
-            query += " AND status = ?"
+            where_clauses.append("status = ?")
             params.append(status)
         if analysis_type:
-            query += " AND analysis_type = ?"
+            where_clauses.append("analysis_type = ?")
             params.append(analysis_type)
-        
-        query += " ORDER BY id DESC LIMIT ?"
-        params.append(int(limit))
-        
+
+        where = " AND ".join(where_clauses)
+
         with get_connection() as conn:
-            rows = conn.execute(query, params).fetchall()
-        
-        return [RunRow(**dict(r)) for r in rows]
+            total: int = conn.execute(
+                f"SELECT COUNT(*) FROM runs WHERE {where}", params
+            ).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT * FROM runs WHERE {where} ORDER BY id DESC LIMIT ? OFFSET ?",
+                params + [int(limit), int(offset)],
+            ).fetchall()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "runs": [RunRow(**dict(r)) for r in rows],
+        }
 
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: int) -> dict[str, Any]:
