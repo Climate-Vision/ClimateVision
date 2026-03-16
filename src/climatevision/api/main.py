@@ -17,11 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Literal
 
+from pydantic import field_validator
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator
 
 from climatevision.db import (
     get_connection,
@@ -105,6 +107,36 @@ class PredictRequest(BaseModel):
     bbox: Optional[list[float]] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+
+    @field_validator("bbox")
+    @classmethod
+    def validate_bbox(cls, v: Optional[list[float]]) -> Optional[list[float]]:
+        if v is None:
+            return v
+        if len(v) != 4:
+            raise ValueError("bbox must have exactly 4 values: [west, south, east, north]")
+        west, south, east, north = v
+        if not (-180 <= west <= 180 and -180 <= east <= 180):
+            raise ValueError("bbox longitude values must be between -180 and 180")
+        if not (-90 <= south <= 90 and -90 <= north <= 90):
+            raise ValueError("bbox latitude values must be between -90 and 90")
+        if west >= east:
+            raise ValueError("bbox west longitude must be less than east longitude")
+        if south >= north:
+            raise ValueError("bbox south latitude must be less than north latitude")
+        return v
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "PredictRequest":
+        if self.start_date and self.end_date:
+            try:
+                start = datetime.strptime(self.start_date, "%Y-%m-%d")
+                end = datetime.strptime(self.end_date, "%Y-%m-%d")
+            except ValueError:
+                raise ValueError("start_date and end_date must be in YYYY-MM-DD format")
+            if start >= end:
+                raise ValueError("start_date must be earlier than end_date")
+        return self
 
 
 class RunRow(BaseModel):
