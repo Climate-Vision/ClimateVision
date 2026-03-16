@@ -13,16 +13,19 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Literal
 
 from pydantic import field_validator
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from pydantic import BaseModel, Field, EmailStr, model_validator
 
 from climatevision.db import (
@@ -315,6 +318,28 @@ async def get_current_organization(
     return None
 
 
+# ===== Audit Logging Middleware =====
+
+class AuditLogMiddleware(BaseHTTPMiddleware):
+    """Log every API request with method, path, status code, and duration."""
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        start = time.perf_counter()
+        response: Response = await call_next(request)
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+
+        logger.info(
+            "API request | method=%s path=%s status=%s duration_ms=%s ip=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            request.client.host if request.client else "unknown",
+        )
+        response.headers["X-Response-Time-Ms"] = str(duration_ms)
+        return response
+
+
 # ===== Application Factory =====
 
 def create_app() -> FastAPI:
@@ -337,6 +362,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    app.add_middleware(AuditLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
