@@ -92,3 +92,7 @@ outputs/
 # Service account keys — never commit these
 secrets/
 *.json
+
+# Large model files
+models/demo_run/
+*.pth
