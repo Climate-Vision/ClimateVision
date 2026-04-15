@@ -7,7 +7,6 @@ and include a metadata dict that labels synthetic scenes explicitly.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import tempfile
@@ -16,12 +15,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-import yaml
+
+from .band_mapping import get_bands_for_analysis
 
 logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_CONFIG_PATH = _PROJECT_ROOT / "config.yaml"
 _SATELLITE_DIR = _PROJECT_ROOT / "data" / "satellite"
 
 # Standard Sentinel-2 band name → GEE asset name mapping
@@ -40,20 +39,6 @@ _BAND_NAME_TO_GEE = {
     "B11": "B11",
     "B12": "B12",
 }
-
-
-def _load_config() -> dict[str, Any]:
-    """Load the master config.yaml."""
-    with open(_CONFIG_PATH, "r") as f:
-        return yaml.safe_load(f)
-
-
-def _get_bands_for_analysis(analysis_type: str) -> list[str]:
-    """Return Sentinel-2 band list for a given analysis type from config.yaml."""
-    cfg = _load_config()
-    analysis_cfg = cfg.get("analysis_types", {}).get(analysis_type, {})
-    bands = analysis_cfg.get("bands", ["B04", "B03", "B02", "B08"])
-    return list(bands)
 
 
 def _initialize_ee() -> Any:
@@ -75,6 +60,17 @@ def _initialize_ee() -> Any:
     else:
         ee.Initialize()
     return ee
+
+
+def _get_default_tile_size() -> int:
+    """Read the default tile size from config.yaml."""
+    import yaml
+
+    config_path = _PROJECT_ROOT / "config.yaml"
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f)
+    image_size = cfg.get("data", {}).get("image_size", [256, 256])
+    return int(image_size[0])
 
 
 def download_tile_for_analysis(
@@ -125,7 +121,7 @@ def download_tile_for_analysis(
             out_path=out_path,
         )
 
-    bands = _get_bands_for_analysis(analysis_type)
+    bands = get_bands_for_analysis(analysis_type)
     gee_bands = [_BAND_NAME_TO_GEE[b] for b in bands]
     if include_scl and "SCL" not in gee_bands:
         gee_bands.append("SCL")
@@ -211,9 +207,10 @@ def _generate_synthetic_tile(
     """
     rasterio = __import__("rasterio")
 
-    bands = _get_bands_for_analysis(analysis_type)
+    bands = get_bands_for_analysis(analysis_type)
     n_bands = len(bands)
-    h, w = 256, 256
+    tile_size = _get_default_tile_size()
+    h, w = tile_size, tile_size
 
     # Seed RNG from bbox so the same region is deterministic
     seed = int(abs(sum(v * 1000 * (i + 1) for i, v in enumerate(bbox)))) % (2 ** 31)

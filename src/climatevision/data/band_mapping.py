@@ -6,6 +6,7 @@ climate analysis type requires, derived from config.yaml.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ SENTINEL2_BAND_ORDER = [
 SCL_BAND = "SCL"
 
 
+@lru_cache(maxsize=1)
 def _load_config() -> dict[str, Any]:
     """Load the master config.yaml once and cache it."""
     with open(_CONFIG_PATH, "r") as f:

@@ -138,6 +138,14 @@ def apply_scl_cloud_mask(
     if clear_labels is None:
         clear_labels = [4, 5, 6, 11]
 
+    if image.ndim != 3:
+        raise ValueError(f"image must be 3-D (C, H, W), got shape {image.shape}")
+    if scl_band.shape != image.shape[1:]:
+        raise ValueError(
+            f"scl_band shape {scl_band.shape} must match image spatial dimensions "
+            f"{image.shape[1:]}"
+        )
+
     clear_mask = np.isin(scl_band, clear_labels)
     masked = image.copy()
     masked[:, ~clear_mask] = fill_value
