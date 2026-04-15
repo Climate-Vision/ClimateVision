@@ -1,7 +1,16 @@
 from .dataset import ForestDataset, create_dataloaders
 from .augmentation import get_train_transforms, get_val_transforms
-from .preprocessing import Sentinel2Normalizer, compute_dataset_stats
+from .preprocessing import Sentinel2Normalizer, compute_dataset_stats, apply_scl_cloud_mask
 from .synthetic import generate_synthetic_dataset
+from .gee_downloader import download_tile_for_analysis
+from .band_mapping import (
+    get_bands_for_analysis,
+    get_bands_for_analysis_with_scl,
+    get_band_indices,
+    is_analysis_enabled,
+    list_enabled_analysis_types,
+    get_model_config,
+)
 from .validation import (
     DataValidationError,
     validate_image_shape,
@@ -26,8 +35,18 @@ __all__ = [
     # Preprocessing
     "Sentinel2Normalizer",
     "compute_dataset_stats",
+    "apply_scl_cloud_mask",
     # Synthetic
     "generate_synthetic_dataset",
+    # GEE
+    "download_tile_for_analysis",
+    # Band mapping
+    "get_bands_for_analysis",
+    "get_bands_for_analysis_with_scl",
+    "get_band_indices",
+    "is_analysis_enabled",
+    "list_enabled_analysis_types",
+    "get_model_config",
     # Validation
     "DataValidationError",
     "validate_image_shape",

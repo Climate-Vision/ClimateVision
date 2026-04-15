@@ -552,6 +552,7 @@ def create_app() -> FastAPI:
                 bbox=body.bbox,
                 start_date=body.start_date,
                 end_date=body.end_date,
+                analysis_type=body.analysis_type,
             )
             result_payload["analysis_type"] = body.analysis_type
             status = "completed"
@@ -633,6 +634,7 @@ def create_app() -> FastAPI:
                 bbox=parsed_bbox,
                 start_date=start_date,
                 end_date=end_date,
+                analysis_type=analysis_type,
             )
             result_payload["analysis_type"] = analysis_type
             status = "completed"
