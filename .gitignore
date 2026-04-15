@@ -40,8 +40,8 @@ ENV/
 !notebooks/*.ipynb
 
 # Data
-data/
-datasets/
+/data/
+/datasets/
 *.tif
 *.tiff
 *.h5
