@@ -26,6 +26,25 @@ pip install -r requirements.txt
 
 ## Quickstart
 
+### Docker Compose (Recommended)
+
+The easiest way to run the full stack is using Docker Compose:
+
+1. Copy the environment variables:
+   ```bash
+   cp .env.example .env
+   cp frontend/.env.example frontend/.env
+   ```
+2. Start the environment:
+   ```bash
+   docker-compose up -d --build # or docker compose up -d --build
+   ```
+3. Access the application:
+   - Frontend: [http://localhost:5173](http://localhost:5173) (or `http://localhost:3000`)
+   - Backend API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Manual Setup
+
 **Start the API server:**
 
 ```bash
