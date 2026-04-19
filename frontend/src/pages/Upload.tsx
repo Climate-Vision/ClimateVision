@@ -4,7 +4,7 @@ import { CloudUpload, FileText, X, ChevronDown, ChevronUp, Loader2 } from 'lucid
 import type { AnalysisType } from '../api'
 import { predictUpload } from '../api'
 import { AnalysisTypeSelector } from '../components/ui/AnalysisTypeSelector'
-import { MapBBoxPicker } from '../components/map/MapBBoxPicker'
+import { MapBBoxPicker } from '../components/Map/MapBBoxPicker'
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { useToast } from '../contexts/ToastContext'
 import { useApp } from '../contexts/AppContext'
