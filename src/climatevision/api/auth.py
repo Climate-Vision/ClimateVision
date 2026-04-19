@@ -77,6 +77,14 @@ class APIKeyAuth:
         if not api_key or not api_key.startswith("cv_"):
             return None
 
+        # Development bypass — allow cv_dev for local testing
+        if api_key == "cv_dev":
+            return {
+                "id": 0,
+                "name": "Development",
+                "demo": True,
+            }
+
         # Check cache first
         key_hash = self.hash_key(api_key)
         if key_hash in self._key_cache:
