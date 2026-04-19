@@ -66,8 +66,6 @@ def _find_best_checkpoint(analysis_type: str) -> Optional[Path]:
 
 def _load_model(analysis_type: str = "deforestation") -> tuple[UNet, torch.device]:
     """Load (or return cached) U-Net model configured for the analysis type."""
-    global _model_cache
-
     if analysis_type in _model_cache:
         return _model_cache[analysis_type]
 
