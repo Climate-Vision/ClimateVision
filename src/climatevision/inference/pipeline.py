@@ -277,6 +277,7 @@ def run_inference(
         "region": region,
         "ndvi_stats": ndvi_stats,
         "inference": inference,
+        "is_synthetic": False,
     }
 
 
@@ -391,6 +392,7 @@ def run_inference_from_gee(
             analysis_type=analysis_type,
         )
         result["metadata"] = metadata
+        result["is_synthetic"] = metadata.get("is_synthetic", False)
 
         # Override NDVI with GEE-derived stats if we got them; else keep computed
         if ndvi_stats is not None:
@@ -423,6 +425,7 @@ def run_inference_from_gee(
     if gee_count:
         region["images_available"] = gee_count
     result["region"] = region
+    result["is_synthetic"] = True
     result["metadata"] = {"is_synthetic": True, "fallback_reason": "gee_tile_download_failed"}
 
     return result

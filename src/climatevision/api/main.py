@@ -43,6 +43,7 @@ from climatevision.db import (
     mark_alert_delivered,
 )
 from climatevision.inference import run_inference_from_file, run_inference_from_gee
+from climatevision.api.auth import require_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -385,11 +386,49 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
-        """Health check endpoint with API information."""
+        """Health check endpoint with API information and config validation."""
+        from climatevision.data.band_mapping import get_model_config
+
+        enabled_types = [t for t in SUPPORTED_ANALYSIS_TYPES if t["enabled"]]
+        config_issues: list[dict[str, Any]] = []
+
+        for atype in enabled_types:
+            name = atype["name"]
+            try:
+                cfg = get_model_config(name)
+                expected_channels = len(atype["bands"])
+                expected_classes = len(atype["classes"])
+                if cfg.get("in_channels") != expected_channels:
+                    config_issues.append(
+                        {
+                            "analysis_type": name,
+                            "issue": "in_channels mismatch",
+                            "expected": expected_channels,
+                            "got": cfg.get("in_channels"),
+                        }
+                    )
+                if cfg.get("num_classes") != expected_classes:
+                    config_issues.append(
+                        {
+                            "analysis_type": name,
+                            "issue": "num_classes mismatch",
+                            "expected": expected_classes,
+                            "got": cfg.get("num_classes"),
+                        }
+                    )
+            except Exception as exc:
+                config_issues.append(
+                    {"analysis_type": name, "issue": "config missing", "error": str(exc)}
+                )
+
+        health_status = "ok" if not config_issues else "degraded"
+
         return {
-            "status": "ok",
+            "status": health_status,
             "version": "0.2.0",
-            "analysis_types": [t["name"] for t in SUPPORTED_ANALYSIS_TYPES if t["enabled"]],
+            "analysis_types": [t["name"] for t in enabled_types],
+            "config_valid": len(config_issues) == 0,
+            "config_issues": config_issues,
         }
 
     @app.get("/api/analysis-types")
@@ -519,7 +558,10 @@ def create_app() -> FastAPI:
     # ===== Prediction Endpoints =====
 
     @app.post("/api/predict")
-    async def predict_json(body: PredictRequest) -> dict[str, Any]:
+    async def predict_json(
+        body: PredictRequest,
+        org: dict[str, Any] = Depends(require_api_key),
+    ) -> dict[str, Any]:
         """Run prediction using bounding box and date range."""
         if body.start_date and body.end_date and body.start_date > body.end_date:
             raise HTTPException(status_code=400, detail="start_date must be before end_date")
@@ -587,6 +629,7 @@ def create_app() -> FastAPI:
     @app.post("/api/predict/upload")
     async def predict_upload(
         kind: str = Form(default="upload"),
+        org: dict[str, Any] = Depends(require_api_key),
         analysis_type: str = Form(default="deforestation"),
         bbox: str | None = Form(default=None),
         start_date: str | None = Form(default=None),
@@ -670,7 +713,10 @@ def create_app() -> FastAPI:
     # ===== Organization (NGO) Endpoints =====
 
     @app.post("/api/organizations", response_model=OrganizationWithKeyResponse)
-    def create_org(body: CreateOrganizationRequest) -> dict[str, Any]:
+    def create_org(
+        body: CreateOrganizationRequest,
+        org: dict[str, Any] = Depends(require_api_key),
+    ) -> dict[str, Any]:
         """Register a new organization. Returns API key (save it securely)."""
         result = create_organization(
             name=body.name,
@@ -739,6 +785,7 @@ def create_app() -> FastAPI:
     def create_org_subscription(
         org_id: int,
         body: CreateSubscriptionRequest,
+        org: dict[str, Any] = Depends(require_api_key),
     ) -> SubscriptionResponse:
         """Create a new region subscription for an organization."""
         org = get_organization(org_id)
@@ -831,7 +878,11 @@ def create_app() -> FastAPI:
         ]
 
     @app.post("/api/organizations/{org_id}/alerts")
-    def create_org_alert(org_id: int, body: CreateAlertRequest) -> AlertResponse:
+    def create_org_alert(
+        org_id: int,
+        body: CreateAlertRequest,
+        org: dict[str, Any] = Depends(require_api_key),
+    ) -> AlertResponse:
         """Create a new alert for an organization."""
         org = get_organization(org_id)
         if not org:
@@ -864,6 +915,7 @@ def create_app() -> FastAPI:
     def acknowledge_org_alert(
         alert_id: int,
         acknowledged_by: Optional[str] = None,
+        org: dict[str, Any] = Depends(require_api_key),
     ) -> dict[str, Any]:
         """Acknowledge an alert."""
         success = acknowledge_alert(alert_id, acknowledged_by)
@@ -872,7 +924,10 @@ def create_app() -> FastAPI:
         return {"success": True, "alert_id": alert_id}
 
     @app.post("/api/alerts/{alert_id}/deliver")
-    def mark_alert_as_delivered(alert_id: int) -> dict[str, Any]:
+    def mark_alert_as_delivered(
+        alert_id: int,
+        org: dict[str, Any] = Depends(require_api_key),
+    ) -> dict[str, Any]:
         """Mark an alert as delivered."""
         success = mark_alert_delivered(alert_id)
         if not success:
