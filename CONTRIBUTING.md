@@ -31,7 +31,33 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 #### First Time Contributors
 
-Look for issues labeled `good first issue` - these are specifically chosen for newcomers.
+Look for issues labeled `good first issue` — these are specifically chosen for newcomers.
+
+**Recommended first issues (ready to pick up):**
+
+| Issue | What You'll Learn | Time Estimate |
+|-------|-----------------|---------------|
+| [#9: Add frontend unit tests](https://github.com/Climate-Vision/ClimateVision/issues/9) | Vitest, React Testing Library, Vite | 2–4 hours |
+| [#13: Add Docker Compose](https://github.com/Climate-Vision/ClimateVision/issues/13) | Docker, multi-service orchestration | 3–6 hours |
+
+**How to claim an issue:**
+1. Read the issue description and acceptance criteria
+2. Comment "I'd like to work on this" — a maintainer will assign you
+3. Fork the repo and create a branch: `git checkout -b feature/issue-9-frontend-tests`
+4. Open a **draft PR** within 48 hours (even if incomplete) so we can give early feedback
+
+**Need help?** Tag `@Climate-Vision/maintainers` in the issue or open a [Discussion](https://github.com/Climate-Vision/ClimateVision/discussions).
+
+#### Intermediate Contributors
+
+Ready for something meatier? These issues close critical gaps in our production pipeline:
+
+| Issue | Area | Skills You'll Build |
+|-------|------|-------------------|
+| [#10: Alert delivery worker](https://github.com/Climate-Vision/ClimateVision/issues/10) | Backend | FastAPI BackgroundTasks, SMTP, webhooks |
+| [#11: WebSocket real-time updates](https://github.com/Climate-Vision/ClimateVision/issues/11) | Full-stack | FastAPI WebSockets, React hooks, graceful degradation |
+| [#12: ONNX Runtime inference](https://github.com/Climate-Vision/ClimateVision/issues/12) | MLOps | ONNX Runtime, PyTorch export, latency benchmarking |
+| [#14: Carbon analytics API](https://github.com/Climate-Vision/ClimateVision/issues/14) | Analytics | Feature flags, API schema design, geospatial math |
 
 #### Development Process
 
