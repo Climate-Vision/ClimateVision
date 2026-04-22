@@ -1,0 +1,16 @@
+# CODEOWNERS — automatically request reviews for matching paths
+
+# Global owner — reviews all PRs by default
+*   @Goldokpa
+
+# GitHub config and workflows
+/.github/   @Goldokpa
+
+# ML models and training
+/src/climatevision/models/   @Goldokpa
+/src/climatevision/training/   @Goldokpa
+
+# API, frontend, docs
+/src/climatevision/api/   @Goldokpa
+/frontend/   @Goldokpa
+/docs/   @Goldokpa
