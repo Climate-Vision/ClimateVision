@@ -96,3 +96,4 @@ secrets/
 # Large model files
 models/demo_run/
 *.pth
+team_docs/
