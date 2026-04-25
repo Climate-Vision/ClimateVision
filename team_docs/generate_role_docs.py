@@ -2359,3 +2359,250 @@ if __name__ == "__main__":
     create_paul_doc()
     create_gold_doc()
     print(f"\nAll 8 role documents generated in: {OUTPUT_DIR}")
+
+def create_linda_doc():
+    pdf = RoleDoc("Linda Oraegbunam")
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.cell(0, 10, "Linda Oraegbunam", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 7, "Responsible AI & Model Governance Lead", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(5)
+
+    pdf.key_value("GitHub", "@obielin")
+    pdf.key_value("Access Level", "Maintainer")
+    pdf.key_value("Reports To", "@Goldokpa (Project Owner)")
+    pdf.key_value("Project Duration", "3 Months")
+    pdf.ln(3)
+
+    pdf.section_title("How This Role Fits You")
+    pdf.body_text(
+        "Your FRSS fellowship, peer-reviewed publications in AI ethics, and open-source security tooling (skillguard) "
+        "give you a governance lens that no one else on this team has. While others build models and pipelines, "
+        "you ensure the outputs are trustworthy, explainable, and secure enough for NGOs and government agencies to act on."
+    )
+    pdf.body_text(
+        "Your skillguard project - detecting prompt injection and supply chain attacks in agentic AI - maps directly "
+        "to securing ClimateVision's inference pipeline. Your agentsync work on multi-agent orchestration applies to "
+        "building autonomous monitoring agents that track deforestation regions without human intervention."
+    )
+    pdf.body_text(
+        "Your HMRC experience operationalising 30+ governed KPIs and your Readrly.io MLOps work with fairness/bias "
+        "evaluation frameworks mean you understand how to build auditability into production systems. That is exactly "
+        "what ClimateVision needs: every prediction must be explainable, every model version auditable, and every "
+        "regional disparity measurable."
+    )
+    pdf.ln(2)
+
+    pdf.section_title("Your Role on ClimateVision")
+    pdf.body_text(
+        "You own the responsible AI, explainability, and governance layer - everything that turns black-box "
+        "segmentation outputs into trustworthy, actionable intelligence for conservation stakeholders."
+    )
+    pdf.subsection_title("Core Responsibilities")
+    pdf.bullet("Build SHAP-based explainability for U-Net segmentation predictions - explain WHY each pixel was classified")
+    pdf.bullet("Implement bias and fairness audits across geographic regions (Amazon, Congo, Southeast Asia)")
+    pdf.bullet("Create anomaly detection for inference inputs and outputs - flag unusual predictions for human review")
+    pdf.bullet("Design model governance framework: version tracking, audit trails, compliance documentation")
+    pdf.bullet("Conduct AI security audit of FastAPI inference pipeline (OWASP Agentic Top 10, input validation)")
+    pdf.bullet("Build automated impact reports using LLM/NLP pipelines from model outputs")
+    pdf.bullet("Integrate responsible AI evaluation into CI/CD - automated fairness checks on every model release")
+    pdf.ln(2)
+
+    pdf.subsection_title("Sprint Progress - April 2026")
+    pdf.bullet("PENDING: SHAP explainability integration for segmentation masks")
+    pdf.bullet("PENDING: Regional bias audit framework")
+    pdf.bullet("PENDING: Anomaly detection for inference pipeline")
+    pdf.bullet("PENDING: Model governance and audit trail system")
+    pdf.bullet("PENDING: AI security audit of API endpoints")
+    pdf.bullet("PENDING: LLM-based automated impact report generation")
+    pdf.ln(1)
+
+    pdf.section_title("Your Codebase Ownership")
+    pdf.body_text("You are the primary owner of the following files and directories:")
+    pdf.code_block(
+        "src/climatevision/governance/          # PRIMARY OWNER - New module\n"
+        "  explainability.py                   # SHAP explainability for segmentation\n"
+        "  bias_audit.py                       # Regional fairness evaluation\n"
+        "  anomaly_detector.py                 # Input/output anomaly detection\n"
+        "  audit_logger.py                     # Model audit trails\n"
+        "  __init__.py\n"
+        "\n"
+        "src/climatevision/security/            # PRIMARY OWNER - New module\n"
+        "  api_security.py                     # API input validation & sanitization\n"
+        "  pipeline_guard.py                   # Inference pipeline security checks\n"
+        "  __init__.py\n"
+        "\n"
+        "src/climatevision/reports/             # PRIMARY OWNER - New module\n"
+        "  llm_reporter.py                     # LLM-based impact report generation\n"
+        "  __init__.py\n"
+        "\n"
+        "scripts/\n"
+        "  audit_model.py                      # Run full governance audit on a model\n"
+        "  security_scan.py                    # OWASP-style scan of API endpoints\n"
+        "\n"
+        "notebooks/\n"
+        "  06_explainability.ipynb             # SHAP visualization notebook\n"
+        "  07_bias_audit.ipynb                 # Regional fairness analysis\n"
+        "  08_security_audit.ipynb             # API security assessment"
+    )
+    pdf.ln(2)
+
+    pdf.section_title("Your 3-Month Delivery Timeline")
+    pdf.month_block("MONTH 1: Explainability & Bias (Weeks 1-4)", [
+        ("Week 1-2: SHAP Explainability", [
+            "Integrate SHAP (DeepExplainer) into U-Net forward pass for pixel-level attribution",
+            "Build explainability.py - generate heatmaps showing which bands/regions drove predictions",
+            "Create 06_explainability.ipynb with visual examples across all 3 analysis types",
+            "Add /api/explain endpoint returning SHAP values for a given prediction",
+        ]),
+        ("Week 3-4: Bias & Fairness Audit", [
+            "Build bias_audit.py - evaluate model performance disparity across regions",
+            "Implement demographic parity and equalized odds metrics for geographic splits",
+            "Create automated bias report generation (JSON + PDF)",
+            "Write 07_bias_audit.ipynb demonstrating fairness evaluation",
+        ]),
+    ])
+    pdf.month_block("MONTH 2: Security & Anomaly Detection (Weeks 5-8)", [
+        ("Week 5-6: AI Security Audit", [
+            "Map ClimateVision API to OWASP Agentic Top 10 and MITRE ATLAS frameworks",
+            "Build api_security.py - input sanitization, rate limiting, payload validation",
+            "Implement pipeline_guard.py - detect adversarial inputs to inference pipeline",
+            "Run security_scan.py against all endpoints and document findings",
+        ]),
+        ("Week 7-8: Anomaly Detection", [
+            "Build anomaly_detector.py - isolation forest + statistical checks for predictions",
+            "Flag predictions with confidence outside historical norms",
+            "Create anomaly alert integration with Olufemi's alert system",
+            "Add /api/anomalies endpoint for querying flagged predictions",
+        ]),
+    ])
+    pdf.month_block("MONTH 3: Governance & Reporting (Weeks 9-12)", [
+        ("Week 9-10: Model Governance", [
+            "Build audit_logger.py - immutable audit trail for every model version and prediction",
+            "Integrate with MLflow for governance metadata tagging",
+            "Create model card generator (automated from training config + evaluation metrics)",
+            "Implement CI gate: block releases that fail fairness or security thresholds",
+        ]),
+        ("Week 11-12: LLM Impact Reports & Documentation", [
+            "Build llm_reporter.py - generate natural-language impact reports from prediction data",
+            "Integrate with Francis's carbon analytics for comprehensive stakeholder reports",
+            "Write governance documentation and responsible AI deployment guide",
+            "Final security sign-off and production readiness review",
+        ]),
+    ])
+
+    pdf.section_title("Your Git Workflow")
+    pdf.code_block(
+        "# Create feature branches from develop\n"
+        "git checkout develop\n"
+        "git pull origin develop\n"
+        "git checkout -b feature/governance-shap-explainability\n"
+        "\n"
+        "# Your branch naming convention:\n"
+        "feature/governance-*    (governance & explainability features)\n"
+        "feature/security-*      (security & audit features)\n"
+        "feature/reports-*       (LLM report generation)\n"
+        "fix/governance-*        (bug fixes)"
+    )
+    pdf.body_text(
+        "All PRs go to the develop branch. Tag @edoh-Onuh for ML architecture reviews, "
+        "Olufemi for API integration, and @franchaise for analytics alignment."
+    )
+    pdf.ln(3)
+
+    pdf.section_title("Your Key Collaborators")
+    pdf.bullet("@edoh-Onuh (ML Lead) - His models are what you explain and audit. Coordinate on model architectures, checkpoint formats, and prediction outputs.")
+    pdf.bullet("Olufemi Taiwo (API Lead) - Your /api/explain and /api/anomalies endpoints extend his API. Align on schemas, auth, and rate limiting.")
+    pdf.bullet("@franchaise (Analytics Lead) - His carbon metrics feed your LLM impact reports. Coordinate on data contracts and report templates.")
+    pdf.bullet("@cutewizzy11 (Full-Stack) - Frontend visualisations of SHAP heatmaps and anomaly dashboards need his React expertise.")
+
+    pdf.section_title("Your Code Pipeline")
+    pdf.body_text("Your pipeline covers explainability generation, bias evaluation, security scanning, and governance reporting.")
+
+    pdf.subsection_title("Step 1: Environment Setup")
+    pdf.code_block(
+        "git clone https://github.com/Climate-Vision/ClimateVision.git\n"
+        "cd ClimateVision\n"
+        "pip install -r requirements.txt\n"
+        "pip install shap mlflow transformers torch\n"
+        "\n"
+        "# Verify dependencies\n"
+        "python -c \"import shap, transformers, torch; print('Governance stack ready')\""
+    )
+
+    pdf.subsection_title("Step 2: Generate SHAP Explanations")
+    pdf.code_block(
+        "# Run SHAP explainability on a prediction mask\n"
+        "python - <<'EOF'\n"
+        "from climatevision.governance.explainability import explain_prediction\n"
+        "explanation = explain_prediction(\n"
+        "    model_path='models/unet_deforestation.pth',\n"
+        "    image_path='data/test/amazon_tile.tif',\n"
+        "    analysis_type='deforestation'\n"
+        ")\n"
+        "print(f\"Top contributing bands: {explanation['top_bands']}\")\n"
+        "print(f\"Spatial attribution saved to: {explanation['heatmap_path']}\")\n"
+        "EOF"
+    )
+
+    pdf.subsection_title("Step 3: Run Bias Audit")
+    pdf.code_block(
+        "# Evaluate fairness across geographic regions\n"
+        "python - <<'EOF'\n"
+        "from climatevision.governance.bias_audit import run_bias_audit\n"
+        "report = run_bias_audit(\n"
+        "    model_path='models/unet_deforestation.pth',\n"
+        "    regions=['amazon', 'congo', 'southeast_asia'],\n"
+        "    metric='equalized_odds'\n"
+        ")\n"
+        "print(f\"Fairness score: {report['score']:.3f}\")\n"
+        "print(f\"Disparity detected: {report['disparity_regions']}\")\n"
+        "EOF"
+    )
+
+    pdf.subsection_title("Step 4: Security Scan")
+    pdf.code_block(
+        "# Run OWASP-style scan on API endpoints\n"
+        "python scripts/security_scan.py --target http://localhost:8000\n"
+        "\n"
+        "# Output: security_report.json with findings and remediation"
+    )
+
+    pdf.subsection_title("Step 5: Generate LLM Impact Report")
+    pdf.code_block(
+        "# Generate natural-language report from prediction data\n"
+        "python - <<'EOF'\n"
+        "from climatevision.reports.llm_reporter import generate_impact_report\n"
+        "report = generate_impact_report(\n"
+        "    run_id=12345,\n"
+        "    region='amazon',\n"
+        "    include_shap=True,\n"
+        "    include_carbon=True\n"
+        ")\n"
+        "print(report['summary'])\n"
+        "# -> 'The model detected 1,247 hectares of deforestation with 94% confidence...'\n"
+        "EOF"
+    )
+
+    pdf.subsection_title("Step 6: Commit & Push Your Work")
+    pdf.code_block(
+        "# Switch to your git identity (create one if needed)\n"
+        "git config user.name 'Linda Oraegbunam'\n"
+        "git config user.email 'linda@placeholder.com'\n"
+        "\n"
+        "git checkout develop && git pull origin develop\n"
+        "git checkout -b feature/governance-shap-explainability\n"
+        "\n"
+        "git add src/climatevision/governance/\n"
+        "git add notebooks/06_explainability.ipynb\n"
+        "git commit -m \"feat(governance): add SHAP explainability for segmentation predictions\"\n"
+        "\n"
+        "git push origin feature/governance-shap-explainability"
+    )
+
+    pdf.output(os.path.join(OUTPUT_DIR, "Linda_Oraegbunam_Role.pdf"))
+    print("Created: Linda_Oraegbunam_Role.pdf")
