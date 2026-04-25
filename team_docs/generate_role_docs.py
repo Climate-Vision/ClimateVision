@@ -174,18 +174,32 @@ def create_adeolu_doc():
     pdf.bullet("Build data validation and quality checks for incoming satellite imagery")
     pdf.bullet("Manage the data/ directory structure (raw, processed, satellite)")
     pdf.bullet("Create EDA notebooks for spatial data exploration and visualization")
-    pdf.ln(2)
+    pdf.ln(1)
+
+    pdf.subsection_title("Sprint Progress - April 2026")
+    pdf.bullet("DONE: band_mapping.py - analysis-specific band mapping from config.yaml")
+    pdf.bullet("DONE: gee_downloader.py - GEE tile download with metadata")
+    pdf.bullet("DONE: preprocessing.py - SCL-based cloud masking")
+    pdf.bullet("DONE: dataset.py - PyTorch Dataset and DataLoader")
+    pdf.bullet("DONE: augmentation.py - training/validation transforms")
+    pdf.bullet("DONE: synthetic.py - synthetic fallback tile generation")
+    pdf.bullet("PENDING: Real GEE tile download in inference pipeline (not just NDVI stats)")
+    pdf.bullet("PENDING: Analysis-specific band mapping enforcement in inference preprocessing")
+    pdf.bullet("PENDING: Cloud masking integration at inference time before model forward pass")
+    pdf.bullet("PENDING: Synthetic fallback guardrails - clearly label synthetic tiles in metadata")
+    pdf.ln(1)
 
     # Codebase Ownership
     pdf.section_title("Your Codebase Ownership")
     pdf.body_text("You are the primary owner of the following files and directories:")
     pdf.code_block(
         "src/climatevision/data/              # PRIMARY OWNER - Entire data module\n"
-        "  sentinel2.py                        # Sentinel-2 downloader & preprocessor\n"
-        "  landsat.py                          # Landsat data loader\n"
-        "  dataset.py                          # PyTorch Dataset classes\n"
-        "  preprocess.py                       # Cloud masking, normalization\n"
-        "  augmentation.py                     # Data augmentation pipeline\n"
+        "  band_mapping.py                     # Analysis-specific band mapping (ACTIVE)\n"
+        "  gee_downloader.py                   # GEE tile downloader (ACTIVE)\n"
+        "  preprocessing.py                    # Cloud masking, normalization (ACTIVE)\n"
+        "  dataset.py                          # PyTorch Dataset & DataLoader (ACTIVE)\n"
+        "  augmentation.py                     # Data augmentation pipeline (ACTIVE)\n"
+        "  synthetic.py                        # Synthetic tile fallback (ACTIVE)\n"
         "  __init__.py                         # Module exports\n"
         "\n"
         "src/climatevision/utils/\n"
@@ -193,8 +207,9 @@ def create_adeolu_doc():
         "  visualization.py                    # CO-OWNER - Spatial visualizations\n"
         "\n"
         "scripts/\n"
-        "  setup_gee.py                        # Google Earth Engine setup\n"
-        "  download_data.py                    # Automated satellite data download\n"
+        "  prepare_data.py                     # Automated satellite data download\n"
+        "\n"
+        "config.yaml                           # Band mapping & analysis type config\n"
         "\n"
         "data/                                 # Data directory structure\n"
         "  raw/ | processed/ | satellite/\n"
@@ -288,7 +303,41 @@ def create_adeolu_doc():
         "# Follow browser prompt to authorise your GEE service account"
     )
 
-    pdf.subsection_title("Step 2: Ingest Satellite Data")
+    pdf.subsection_title("Step 2: Analysis-Specific Band Mapping")
+    pdf.body_text("config.yaml defines bands per analysis type. Your band_mapping.py reads this:")
+    pdf.code_block(
+        "# config.yaml analysis type band definitions\n"
+        "deforestation: [B04, B03, B02, B08]  # Red, Green, Blue, NIR -> 4ch -> 2cl\n"
+        "ice_melting:   [B02, B03, B04, B11]  # Blue, Green, Red, SWIR -> 4ch -> 3cl\n"
+        "flooding:      [B03, B08, B11]       # Green, NIR, SWIR -> 3ch -> 3cl\n"
+        "\n"
+        "# Python usage\n"
+        "from climatevision.data.band_mapping import get_bands_for_analysis, get_model_config\n"
+        "\n"
+        "bands = get_bands_for_analysis('flooding')\n"
+        "# -> ['B03', 'B08', 'B11']\n"
+        "\n"
+        "cfg = get_model_config('flooding')\n"
+        "# -> {'in_channels': 3, 'num_classes': 3, 'weights': 'models/unet_flood.pth'}"
+    )
+    pdf.ln(2)
+
+    pdf.subsection_title("Step 3: Cloud Masking with SCL Band")
+    pdf.body_text("Sentinel-2 Scene Classification Layer (SCL) pixel values:")
+    pdf.code_block(
+        "# SCL band values\n"
+        "KEEP = [4, 5, 6, 7, 10]     # vegetation, bare soil, water, low cloud, thin cirrus\n"
+        "MASK = [0, 1, 2, 3, 8, 9]   # NO_DATA, SATURATED, DARK, SHADOW, med/high cloud\n"
+        "\n"
+        "# Usage in preprocessing.py\n"
+        "from climatevision.data.preprocessing import apply_scl_cloud_mask\n"
+        "\n"
+        "clean_image = apply_scl_cloud_mask(image, scl_band)\n"
+        "# image: (C, H, W)   scl_band: (H, W) uint8"
+    )
+    pdf.ln(2)
+
+    pdf.subsection_title("Step 4: Ingest Satellite Data")
     pdf.code_block(
         "# Download Sentinel-2 imagery for a bounding box and date range\n"
         "python scripts/prepare_data.py \\\n"
@@ -301,7 +350,7 @@ def create_adeolu_doc():
         "# Output: GeoTIFF tiles saved to data/raw/amazon_2023/"
     )
 
-    pdf.subsection_title("Step 3: Preprocess & Build Dataset")
+    pdf.subsection_title("Step 5: Preprocess & Build Dataset")
     pdf.code_block(
         "# Run cloud masking, normalization, and 256x256 tiling\n"
         "python - <<'EOF'\n"
@@ -323,7 +372,7 @@ def create_adeolu_doc():
         "EOF"
     )
 
-    pdf.subsection_title("Step 4: Compute Spectral Indices")
+    pdf.subsection_title("Step 6: Compute Spectral Indices")
     pdf.code_block(
         "# Calculate NDVI, EVI, and moisture indices from raw bands\n"
         "python - <<'EOF'\n"
@@ -336,7 +385,7 @@ def create_adeolu_doc():
         "EOF"
     )
 
-    pdf.subsection_title("Step 5: Commit & Push Your Work")
+    pdf.subsection_title("Step 7: Commit & Push Your Work")
     pdf.code_block(
         "# Switch to your git identity\n"
         "source team_docs/switch_user.sh adeolu\n"
