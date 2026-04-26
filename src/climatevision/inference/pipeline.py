@@ -205,6 +205,7 @@ def run_inference(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     analysis_type: str = "deforestation",
+    enable_carbon:bool = False, # Feature flag for carbon loss estimation (Issue #14)
 ) -> dict[str, Any]:
     """
     Run full inference pipeline on a (C, H, W) numpy image.
@@ -264,6 +265,47 @@ def run_inference(
         inference["forest_pixels"] = class_pixels.get("class_1_pixels", 0)
         inference["non_forest_pixels"] = class_pixels.get("class_0_pixels", 0)
         inference["forest_percentage"] = class_percentages.get("class_1_percentage", 0.0)
+    
+    # === Integrate Carbon Computation (Issue #14) ===
+    # Post-processing step for deforestation analysis to estimate carbon tonnes and hectares lost.
+    #Begin fix issue #14
+
+    carbon_estimation = None
+    if enable_carbon and analysis_type == "deforestation":
+        try:
+            from climatevision.analytics.carbon import CarbonEstimator
+
+            estimator = CarbonEstimator(
+                forest_type="tropical_moist",
+                pixel_size_m=10.0
+            )
+
+            mask_np = (predictions == 1).squeeze(0).cpu().numpy()
+            conf_np = max_probs.squeeze(0).cpu().numpy()
+
+            carbon_result = estimator.estimate_from_mask(
+                deforestation_mask=mask_np,
+                confidence_map=conf_np
+            )
+
+            carbon_estimation = {
+                "hectares_lost": carbon_result.hectares,
+                "carbon_tonnes": carbon_result.carbon_tonnes,
+                "co2_equivalent": carbon_result.co2_equivalent,
+                "confidence_interval": {
+                    "lower": carbon_result.ci_lower,
+                    "upper": carbon_result.ci_upper,
+                    "uncertainty_pct": carbon_result.uncertainty_pct
+                }
+            }
+            logger.info(f"Carbon estimation successful: {carbon_result.carbon_tonnes} tonnes")
+            
+        except Exception as e:
+            # Graceful degradation: If carbon estimation fails, log the error and return None 
+            # to prevent the main API inference pipeline from crashing.
+            logger.warning(f"Failed to estimate carbon stock: {e}")
+            carbon_estimation = None
+    #End fix issue #14
 
     region: dict[str, Any] = {}
     if bbox is not None:
@@ -275,7 +317,9 @@ def run_inference(
         "region": region,
         "ndvi_stats": ndvi_stats,
         "inference": inference,
+        "carbon_estimation": carbon_estimation,
         "is_synthetic": False,
+
     }
 
 
@@ -290,6 +334,7 @@ def run_inference_from_file(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     analysis_type: str = "deforestation",
+    enable_carbon: bool = False,  # Pass-through flag for carbon estimation
 ) -> dict[str, Any]:
     """
     Load an image file (GeoTIFF or PNG/JPEG) and run inference.
@@ -301,6 +346,7 @@ def run_inference_from_file(
         start_date=start_date,
         end_date=end_date,
         analysis_type=analysis_type,
+        enable_carbon=enable_carbon,  # Forwarding flag to the core pipeline
     )
     result.setdefault("input", {})["file"] = path
     return result
@@ -349,6 +395,7 @@ def run_inference_from_gee(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     analysis_type: str = "deforestation",
+    enable_carbon: bool = False, # Pass-through flag for carbon estimation
 ) -> dict[str, Any]:
     """
     Query Google Earth Engine for a real Sentinel-2 tile and run inference.
@@ -388,6 +435,7 @@ def run_inference_from_gee(
             start_date=start_date,
             end_date=end_date,
             analysis_type=analysis_type,
+            enable_carbon=enable_carbon,  # issue #14
         )
         result["metadata"] = metadata
         result["is_synthetic"] = metadata.get("is_synthetic", False)
@@ -413,6 +461,7 @@ def run_inference_from_gee(
         start_date=start_date,
         end_date=end_date,
         analysis_type=analysis_type,
+        enable_carbon=enable_carbon,  # Maintain user preference even in fallback mode
     )
 
     if ndvi_stats is None:
