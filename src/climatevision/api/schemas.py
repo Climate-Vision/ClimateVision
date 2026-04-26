@@ -20,6 +20,7 @@ NotificationChannel = Literal["email", "webhook", "api", "sms"]
 AlertSeverity = Literal["low", "medium", "high", "critical"]
 
 
+
 # ===== Request Schemas =====
 
 class BoundingBox(BaseModel):
@@ -104,9 +105,22 @@ class PredictionResponse(BaseModel):
     analysis_type: str
     region: dict[str, Any]
     inference: dict[str, Any]
+
+    # Feature flag response field (Issue #14)
+    carbon_estimation: Optional[dict[str, Any]] = Field(default=None, description="Estimated carbon loss and metrics")
+
     alerts: list[dict[str, Any]] = Field(default_factory=list)
     request_id: Optional[str] = None
     processing_time_ms: Optional[float] = None
+
+# === New Schema for Impact Report (Issue #14) ===
+class ImpactReportResponse(BaseModel):
+    """Structured impact report returning carbon math and region details."""
+    run_id: int
+    hectares_lost: Optional[float]
+    carbon_tonnes: Optional[float]
+    confidence_interval: Optional[dict[str, float]]
+    region_bbox: Optional[list[float]]
 
 
 class OrganizationResponse(BaseModel):
