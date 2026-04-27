@@ -422,6 +422,19 @@ def create_app() -> FastAPI:
                 )
 
         health_status = "ok" if not config_issues else "degraded"
+          model_diagnostics: dict[str, Any] = {}
+          from climatevision.inference.pipeline import _load_model, _find_best_checkpoint
+          for atype in enabled_types:
+                    name = atype["name"]
+                    mstatus: dict[str, Any] = {"loaded": False, "path": None, "error": None}
+                    try:
+                                  _load_model(name)
+                                  mp = _find_best_checkpoint(name)
+                                  mstatus["loaded"] = True
+                                  mstatus["path"] = str(mp) if mp else None
+                              except Exception as exc:
+                                            mstatus["error"] = str(exc)
+                                        model_diagnostics[name] = mstatus
 
         return {
             "status": health_status,
@@ -429,6 +442,7 @@ def create_app() -> FastAPI:
             "analysis_types": [t["name"] for t in enabled_types],
             "config_valid": len(config_issues) == 0,
             "config_issues": config_issues,
+                  "model_diagnostics": model_diagnostics,
         }
 
     @app.get("/api/analysis-types")
