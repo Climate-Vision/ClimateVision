@@ -10,7 +10,7 @@ FastAPI-based REST API for climate monitoring including:
 """
 
 from __future__ import annotations
-
+                                    
 import json
 import logging
 import time
