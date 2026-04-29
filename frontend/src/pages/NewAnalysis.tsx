@@ -64,7 +64,7 @@ export default function NewAnalysis() {
       return
     }
 
-    setBusy(true)
+    
     setResultRun(null)
     setResultPayload(null)
 
@@ -100,7 +100,7 @@ export default function NewAnalysis() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        {error && (<div className="mb-4"><ApiError message={error} /></div>)}
+        <ApiError message={error} onDismiss={() => setError(null)} />
         
       {/* Step 1 — Analysis Type */}
       <section>

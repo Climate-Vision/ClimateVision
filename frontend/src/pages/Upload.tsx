@@ -59,6 +59,7 @@ export default function Upload() {
   const handleUpload = async () => {
     if (!file) return
     setBusy(true)
+    setError(null);
     setUploadProgress(0)
 
     try {
@@ -88,7 +89,7 @@ export default function Upload() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        {error && (<ApiError message={error} />)}
+        <ApiError message={error} onDismiss={() => setError(null)} />
       {/* Drop Zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
