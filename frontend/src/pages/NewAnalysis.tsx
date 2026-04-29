@@ -10,6 +10,7 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { useToast } from '../contexts/ToastContext'
 import { useApp } from '../contexts/AppContext'
 import type { Run } from '../api'
+import { ApiError } from '../components/ui/ApiError'
 
 const PRESETS = [
   { label: 'Last 30d', days: 30 },
@@ -44,6 +45,7 @@ export default function NewAnalysis() {
   const [busy, setBusy] = useState(false)
   const [resultRun, setResultRun] = useState<Run | null>(null)
   const [resultPayload, setResultPayload] = useState<Record<string, unknown> | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const canSubmit = bbox !== null && startDate && endDate && !busy
 
@@ -67,8 +69,11 @@ export default function NewAnalysis() {
     setResultPayload(null)
 
     try {
+      setBusy(true);
+      setError(null);
       const res = await predictJson({ kind: 'bbox', analysis_type: analysisType, bbox: bbox!, start_date: startDate, end_date: endDate })
       setResultPayload(res.result)
+      
       // Construct a minimal Run object for the results panel
       setResultRun({
         id: res.run_id,
@@ -85,8 +90,9 @@ export default function NewAnalysis() {
         label: 'View in history',
         onClick: () => navigate('/runs'),
       })
-    } catch (e) {
-      showToast('error', String(e))
+    } catch (e:any) {
+      const message = e?.response?.data?.detail || e?.message || "Something went wrong";
+      setError(message);
     } finally {
       setBusy(false)
     }
@@ -94,7 +100,8 @@ export default function NewAnalysis() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-
+        {error && (<div className="mb-4"><ApiError message={error} /></div>)}
+        
       {/* Step 1 — Analysis Type */}
       <section>
         <SectionLabel step={1} label="Analysis Type" />
