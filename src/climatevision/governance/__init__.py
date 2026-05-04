@@ -27,6 +27,13 @@ from .audit_logger import (
     AuditLogger,
     log_prediction,
 )
+from .model_card import (
+    ModelCard,
+    build_model_card,
+    generate as generate_model_card,
+    render_markdown,
+    write_model_card,
+)
 
 __all__ = [
     "explain_prediction",
@@ -42,4 +49,9 @@ __all__ = [
     "AuditEntry",
     "AuditLogger",
     "log_prediction",
+    "ModelCard",
+    "build_model_card",
+    "generate_model_card",
+    "render_markdown",
+    "write_model_card",
 ]
