@@ -22,6 +22,11 @@ from .anomaly_detector import (
     extract_features,
     write_anomaly_report,
 )
+from .audit_logger import (
+    AuditEntry,
+    AuditLogger,
+    log_prediction,
+)
 
 __all__ = [
     "explain_prediction",
@@ -34,4 +39,7 @@ __all__ = [
     "detect_anomaly",
     "extract_features",
     "write_anomaly_report",
+    "AuditEntry",
+    "AuditLogger",
+    "log_prediction",
 ]
