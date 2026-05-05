@@ -400,6 +400,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from climatevision.api import admin as _admin
+    app.include_router(_admin.router)
+
     # ===== Core Endpoints =====
 
     @app.get("/")
