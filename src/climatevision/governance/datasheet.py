@@ -37,7 +37,7 @@ from typing import Any, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "outputs" / "datasheets"
 
 REQUIRED_QUESTIONS = {
