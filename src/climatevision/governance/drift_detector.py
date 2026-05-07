@@ -206,7 +206,7 @@ def detect_drift(
                     method="psi",
                     statistic=psi,
                     threshold=PSI_MODERATE,
-                    drifted=psi >= PSI_STABLE,
+                    drifted=psi >= PSI_MODERATE,
                     severity=severity,
                     n_reference=len(ref_values),
                     n_current=len(cur_values),
