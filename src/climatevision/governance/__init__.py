@@ -4,6 +4,7 @@ ClimateVision Governance Module
 Provides responsible AI capabilities:
 - SHAP-based explainability for segmentation predictions
 - Regional bias and fairness auditing
+- Calibration metrics for confidence reliability
 - Anomaly detection for inference inputs/outputs
 - Model audit trails and version tracking
 """
@@ -42,6 +43,16 @@ from .bias_audit import (
     check_fairness_gate,
     SUPPORTED_REGIONS,
 )
+from .calibration import (
+    CalibrationReport,
+    ReliabilityBin,
+    brier_score,
+    evaluate_calibration,
+    expected_calibration_error,
+    maximum_calibration_error,
+    reliability_bins,
+    write_calibration_report,
+)
 
 __all__ = [
     # Explainability
@@ -73,4 +84,13 @@ __all__ = [
     "RegionMetrics",
     "check_fairness_gate",
     "SUPPORTED_REGIONS",
+    # Calibration
+    "CalibrationReport",
+    "ReliabilityBin",
+    "brier_score",
+    "evaluate_calibration",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "reliability_bins",
+    "write_calibration_report",
 ]
