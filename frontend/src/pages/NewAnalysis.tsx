@@ -10,6 +10,7 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { useToast } from '../contexts/ToastContext'
 import { useApp } from '../contexts/AppContext'
 import type { Run } from '../api'
+import { ApiError } from '../components/ui/ApiError'
 
 const PRESETS = [
   { label: 'Last 30d', days: 30 },
@@ -33,6 +34,7 @@ function SectionLabel({ step, label }: { step: number; label: string }) {
 }
 
 export default function NewAnalysis() {
+  const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
   const { googleMapsApiKey } = useApp()
   const navigate = useNavigate()
@@ -56,12 +58,12 @@ export default function NewAnalysis() {
   }
 
   const handleSubmit = async () => {
-    if (!canSubmit) return
+     if (!canSubmit) return
     if (startDate > endDate) {
       showToast('error', 'Start date must be before end date.')
       return
     }
-
+    setError(null)
     setBusy(true)
     setResultRun(null)
     setResultPayload(null)
@@ -85,9 +87,12 @@ export default function NewAnalysis() {
         label: 'View in history',
         onClick: () => navigate('/runs'),
       })
-    } catch (e) {
-      showToast('error', String(e))
-    } finally {
+    } catch (e: any) {
+    const message = e?.response?.data?.message || e?.message || 'Prediction failed'
+    setError(message)
+    showToast('error', message)
+      }
+    finally {
       setBusy(false)
     }
   }
@@ -147,7 +152,7 @@ export default function NewAnalysis() {
           </div>
         </div>
       </section>
-
+          {error && (<ApiError message={error}/>)}
       {/* Submit */}
       <button
         onClick={handleSubmit}
@@ -185,6 +190,7 @@ export default function NewAnalysis() {
                 setResultPayload(null)
               }}
             />
+
           </ErrorBoundary>
         </section>
       )}

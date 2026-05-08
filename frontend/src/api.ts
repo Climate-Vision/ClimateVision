@@ -190,6 +190,7 @@ export async function predictJson(payload: PredictJsonRequest): Promise<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
+
   if (!res.ok) throw new Error('Prediction failed')
   return res.json()
 }

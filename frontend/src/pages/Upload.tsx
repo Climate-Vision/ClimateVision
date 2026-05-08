@@ -8,6 +8,7 @@ import { MapBBoxPicker } from '../components/Map/MapBBoxPicker'
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { useToast } from '../contexts/ToastContext'
 import { useApp } from '../contexts/AppContext'
+import { ApiError } from '../components/ui/ApiError'
 
 const ACCEPTED = ['.tif', '.tiff', '.geotiff', '.nc', '.hdf5']
 const MAX_MB = 500
@@ -18,6 +19,7 @@ function formatBytes(bytes: number) {
 }
 
 export default function Upload() {
+  const [error, setError] = useState<string | null>(null)
   const { showToast } = useToast()
   const { googleMapsApiKey } = useApp()
   const navigate = useNavigate()
@@ -55,10 +57,10 @@ export default function Upload() {
   }, [])
 
   const handleUpload = async () => {
-    if (!file) return
+     if (!file) return
     setBusy(true)
     setUploadProgress(0)
-
+    setError(null)
     try {
       const res = await predictUpload({
         file,
@@ -75,17 +77,20 @@ export default function Upload() {
       })
       setFile(null)
       setUploadProgress(null)
-    } catch (e) {
-      showToast('error', String(e))
-      setUploadProgress(null)
-    } finally {
+    } catch (e: any) {
+    const message = e?.response?.data?.message || e?.message || 'Upload failed'
+
+    setError(message)
+    showToast('error', message)
+
+    setUploadProgress(null)} 
+    finally {
       setBusy(false)
     }
   }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-
       {/* Drop Zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -186,9 +191,10 @@ export default function Upload() {
       </div>
 
       {/* Upload button */}
+      {error && <ApiError message={error} />}
       <button
         onClick={handleUpload}
-        disabled={!file || busy}
+        g disabled={!file || busy}
         className="w-full h-12 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all
           bg-cv-primary text-white hover:bg-cv-primary-hover disabled:opacity-40 disabled:cursor-not-allowed shadow-glow"
       >
