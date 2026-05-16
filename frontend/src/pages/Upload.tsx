@@ -78,12 +78,17 @@ export default function Upload() {
       setFile(null)
       setUploadProgress(null)
     } catch (e: any) {
-    const message = e?.response?.data?.message || e?.message || 'Upload failed'
+    const message =
+      e?.response?.data?.detail ||
+      e?.response?.data?.message ||
+      e?.message ||
+      'Upload failed';
 
     setError(message)
     showToast('error', message)
 
-    setUploadProgress(null)} 
+    setUploadProgress(null);
+  }
     finally {
       setBusy(false)
     }
@@ -194,7 +199,7 @@ export default function Upload() {
       {error && <ApiError message={error} />}
       <button
         onClick={handleUpload}
-        g disabled={!file || busy}
+        disabled={!file || busy}
         className="w-full h-12 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all
           bg-cv-primary text-white hover:bg-cv-primary-hover disabled:opacity-40 disabled:cursor-not-allowed shadow-glow"
       >

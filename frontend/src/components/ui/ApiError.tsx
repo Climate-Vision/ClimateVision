@@ -21,6 +21,8 @@ export function ApiError({ message }: ApiErrorProps) {
       </div>
 
       <button
+        type="button"
+        aria-label="Dismiss"
         onClick={() => setVisible(false)}
         className="text-white/50 hover:text-red-900"
       >
@@ -29,3 +31,4 @@ export function ApiError({ message }: ApiErrorProps) {
     </div>
   );
 }
+
