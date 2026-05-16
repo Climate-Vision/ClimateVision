@@ -503,3 +503,49 @@ def mark_alert_delivered(alert_id: int) -> bool:
             (now, alert_id),
         )
         return cursor.rowcount > 0
+
+
+def get_alert(alert_id: int) -> Optional[sqlite3.Row]:
+    """Get a single alert by ID."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM organization_alerts WHERE id = ?", (alert_id,)
+        ).fetchone()
+
+
+def get_subscription(sub_id: int) -> Optional[sqlite3.Row]:
+    """Get a single subscription by ID."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM organization_subscriptions WHERE id = ?", (sub_id,)
+        ).fetchone()
+
+
+def get_pending_alerts(
+    organization_id: int,
+    limit: int = 50,
+) -> list[sqlite3.Row]:
+    """Get undelivered alerts for an organization."""
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM organization_alerts
+            WHERE organization_id = ? AND delivered = 0
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (organization_id, limit),
+        ).fetchall()
+
+
+def increment_delivery_attempts(alert_id: int) -> bool:
+    """Increment the delivery attempts counter for an alert."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE organization_alerts
+            SET delivery_attempts = delivery_attempts + 1
+            WHERE id = ?
+            """,
+            (alert_id,),
+        )
+        return cursor.rowcount > 0
