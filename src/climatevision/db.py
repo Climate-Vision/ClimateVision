@@ -492,13 +492,65 @@ def acknowledge_alert(alert_id: int, acknowledged_by: Optional[str] = None) -> b
 def mark_alert_delivered(alert_id: int) -> bool:
     """Mark an alert as delivered."""
     now = _utc_now_iso()
-    
+
     with get_connection() as conn:
         cursor = conn.execute(
             """
             UPDATE organization_alerts
             SET delivered = 1, delivered_at = ?, delivery_attempts = delivery_attempts + 1
             WHERE id = ?
+            """,
+            (now, alert_id),
+        )
+        return cursor.rowcount > 0
+
+
+def get_pending_alerts(
+    max_attempts: int = 3,
+    limit: int = 100,
+) -> list:
+    """Get all alerts that have not been delivered and are still within retry limit.
+
+    Returns alerts ordered by created_at ascending (oldest first).
+    """
+    import sqlite3
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM organization_alerts
+            WHERE delivered = 0 AND delivery_attempts < ?
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (max_attempts, limit),
+        ).fetchall()
+
+
+def increment_delivery_attempt(alert_id: int) -> bool:
+    """Increment the delivery attempt counter without marking delivered."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE organization_alerts
+            SET delivery_attempts = delivery_attempts + 1
+            WHERE id = ? AND delivered = 0
+            """,
+            (alert_id,),
+        )
+        return cursor.rowcount > 0
+
+
+def mark_alert_failed(alert_id: int) -> bool:
+    """Mark an alert as permanently failed after exhausting retries."""
+    now = _utc_now_iso()
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE organization_alerts
+            SET delivery_attempts = delivery_attempts + 1,
+                details = COALESCE(details || ' | ', '') ||
+                    'FAILED: all delivery attempts exhausted at ' || ?
+            WHERE id = ? AND delivered = 0
             """,
             (now, alert_id),
         )
