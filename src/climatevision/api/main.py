@@ -20,7 +20,7 @@ from typing import Any, Optional, Literal
 
 from pydantic import field_validator
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -39,10 +39,12 @@ from climatevision.db import (
     get_subscriptions_for_organization,
     create_organization_alert,
     get_alerts_for_organization,
+    get_pending_alerts,
     acknowledge_alert,
     mark_alert_delivered,
 )
 from climatevision.inference import run_inference_from_file, run_inference_from_gee
+from climatevision.workers.alert_delivery import process_alert_delivery
 from climatevision.api.auth import require_api_key
 
 logger = logging.getLogger(__name__)
@@ -877,13 +879,41 @@ def create_app() -> FastAPI:
             for alert in alerts
         ]
 
+    @app.get("/api/organizations/{org_id}/alerts/pending")
+    def list_pending_alerts(
+        org_id: int,
+        limit: int = Query(default=50, le=200),
+    ) -> list[AlertResponse]:
+        """List pending (undelivered) alerts for monitoring."""
+        org = get_organization(org_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        
+        alerts = get_pending_alerts(org_id, limit=limit)
+        
+        return [
+            AlertResponse(
+                id=alert["id"],
+                organization_id=alert["organization_id"],
+                alert_type=alert["alert_type"],
+                severity=alert["severity"],
+                title=alert["title"],
+                message=alert["message"],
+                delivered=bool(alert["delivered"]),
+                acknowledged=bool(alert["acknowledged"]),
+                created_at=alert["created_at"],
+            )
+            for alert in alerts
+        ]
+
     @app.post("/api/organizations/{org_id}/alerts")
     def create_org_alert(
         org_id: int,
         body: CreateAlertRequest,
+        background_tasks: BackgroundTasks,
         org: dict[str, Any] = Depends(require_api_key),
     ) -> AlertResponse:
-        """Create a new alert for an organization."""
+        """Create a new alert for an organization and queue background delivery."""
         org = get_organization(org_id)
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
@@ -898,6 +928,8 @@ def create_app() -> FastAPI:
             run_id=body.run_id,
             details=body.details,
         )
+        
+        background_tasks.add_task(process_alert_delivery, alert_id)
         
         return AlertResponse(
             id=alert_id,
