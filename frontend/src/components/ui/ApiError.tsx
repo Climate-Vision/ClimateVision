@@ -1,15 +1,15 @@
 // frontend/src/components/ui/ApiError.tsx
-import { AlertCircle, X } from 'lucide-react';
-import { useState } from 'react';
+import { AlertCircle, X } from 'lucide-react'
+import { useState } from 'react'
 
 type ApiErrorProps = {
-  message: string;
-};
+  message: string
+}
 
 export function ApiError({ message }: ApiErrorProps) {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(true)
 
-  if (!visible) return null;
+  if (!visible) return null
 
   return (
     <div className="flex bg-red-950/90 items-start justify-between overflow-hidden gap-3 rounded-xl sm:text-xs md:text-base border border-red-500/70 p-3 text-white/80">
@@ -21,5 +21,5 @@ export function ApiError({ message }: ApiErrorProps) {
         <X className="h-4 w-4" />
       </button>
     </div>
-  );
+  )
 }
