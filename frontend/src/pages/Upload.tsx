@@ -79,7 +79,11 @@ export default function Upload() {
       setFile(null)
       setUploadProgress(null)
     } catch (e:any) {
-     const message = e?.response?.data?.detail || e?.message || "Upload failed";
+     const message =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Upload failed'
       setError(message);
       setUploadProgress(null);
     } finally {

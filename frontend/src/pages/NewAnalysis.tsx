@@ -91,8 +91,13 @@ export default function NewAnalysis() {
         onClick: () => navigate('/runs'),
       })
     } catch (e:any) {
-      const message = e?.response?.data?.detail || e?.message || "Something went wrong";
-      setError(message);
+      const message =
+          e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          e?.message ||
+          'Prediction failed'
+      setError(message)
+      showToast('error', message)
     } finally {
       setBusy(false)
     }
