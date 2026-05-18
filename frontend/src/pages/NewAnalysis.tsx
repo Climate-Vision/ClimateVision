@@ -1,25 +1,25 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import type { AnalysisType } from "../api";
-import { predictJson } from "../api";
-import { MapBBoxPicker } from "../components/Map/MapBBoxPicker";
-import { AnalysisTypeSelector } from "../components/ui/AnalysisTypeSelector";
-import { ResultsPanel } from "../components/results/ResultsPanel";
-import { ErrorBoundary } from "../components/ui/ErrorBoundary";
-import { useToast } from "../contexts/ToastContext";
-import { useApp } from "../contexts/AppContext";
-import type { Run } from "../api";
-import { ApiError } from "../components/ui/ApiError";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import type { AnalysisType } from '../api';
+import { predictJson } from '../api';
+import { MapBBoxPicker } from '../components/Map/MapBBoxPicker';
+import { AnalysisTypeSelector } from '../components/ui/AnalysisTypeSelector';
+import { ResultsPanel } from '../components/results/ResultsPanel';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+import { useToast } from '../contexts/ToastContext';
+import { useApp } from '../contexts/AppContext';
+import type { Run } from '../api';
+import { ApiError } from '../components/ui/ApiError';
 
 const PRESETS = [
-  { label: "Last 30d", days: 30 },
-  { label: "Last 90d", days: 90 },
-  { label: "Last year", days: 365 },
+  { label: 'Last 30d', days: 30 },
+  { label: 'Last 90d', days: 90 },
+  { label: 'Last year', days: 365 },
 ];
 
 function toISO(date: Date) {
-  return date.toISOString().split("T")[0];
+  return date.toISOString().split('T')[0];
 }
 
 function SectionLabel({ step, label }: { step: number; label: string }) {
@@ -39,10 +39,10 @@ export default function NewAnalysis() {
   const { googleMapsApiKey } = useApp();
   const navigate = useNavigate();
 
-  const [analysisType, setAnalysisType] = useState<AnalysisType>("deforestation");
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('deforestation');
   const [bbox, setBbox] = useState<number[] | null>(null);
-  const [startDate, setStartDate] = useState("2024-01-01");
-  const [endDate, setEndDate] = useState("2024-12-31");
+  const [startDate, setStartDate] = useState('2024-01-01');
+  const [endDate, setEndDate] = useState('2024-12-31');
   const [busy, setBusy] = useState(false);
   const [resultRun, setResultRun] = useState<Run | null>(null);
   const [resultPayload, setResultPayload] = useState<Record<string, unknown> | null>(null);
@@ -60,7 +60,7 @@ export default function NewAnalysis() {
   const handleSubmit = async () => {
     if (!canSubmit) return;
     if (startDate > endDate) {
-      showToast("error", "Start date must be before end date.");
+      showToast('error', 'Start date must be before end date.');
       return;
     }
     setError(null);
@@ -69,13 +69,13 @@ export default function NewAnalysis() {
     setResultPayload(null);
 
     try {
-      const res = await predictJson({ kind: "bbox", analysis_type: analysisType, bbox: bbox!, start_date: startDate, end_date: endDate });
+      const res = await predictJson({ kind: 'bbox', analysis_type: analysisType, bbox: bbox!, start_date: startDate, end_date: endDate });
       setResultPayload(res.result);
       // Construct a minimal Run object for the results panel
       setResultRun({
         id: res.run_id,
-        kind: "bbox",
-        status: "completed",
+        kind: 'bbox',
+        status: 'completed',
         analysis_type: analysisType,
         bbox: JSON.stringify(bbox),
         start_date: startDate,
@@ -83,14 +83,14 @@ export default function NewAnalysis() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
-      showToast("success", `Run #${res.run_id} complete!`, {
-        label: "View in history",
-        onClick: () => navigate("/runs"),
+      showToast('success', `Run #${res.run_id} complete!`, {
+        label: 'View in history',
+        onClick: () => navigate('/runs'),
       });
     } catch (e: any) {
-      const message = e?.response?.data?.detail || e?.response?.data?.message || e?.message || "Prediction failed";
+      const message = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Prediction failed';
       setError(message);
-      showToast("error", message);
+      showToast('error', message);
     } finally {
       setBusy(false);
     }
@@ -164,7 +164,7 @@ export default function NewAnalysis() {
             Running analysis…
           </>
         ) : (
-          "Run Prediction →"
+          'Run Prediction →'
         )}
       </button>
 
