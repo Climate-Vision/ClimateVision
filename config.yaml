@@ -16,6 +16,7 @@ analysis_types:
       num_classes: 2
     bands: ["B04", "B03", "B02", "B08"]  # Red, Green, Blue, NIR
     classes: ["non_forest", "forest"]
+    scl_clear_labels: [4, 5, 6, 11]  # vegetation, bare soil, water, snow
     thresholds:
       alert_forest_loss: 5.0        # Alert if >5% forest loss
       critical_forest_loss: 15.0    # Critical if >15% loss
@@ -38,6 +39,7 @@ analysis_types:
       num_classes: 3
     bands: ["B02", "B03", "B04", "B11"]  # Blue, Green, Red, SWIR
     classes: ["open_water", "sea_ice", "land"]
+    scl_clear_labels: [4, 5, 6, 11]  # vegetation, bare soil, water, snow
     thresholds:
       alert_ice_loss: 10.0          # Alert if >10% ice loss
       critical_ice_loss: 25.0       # Critical if >25% loss
@@ -60,12 +62,19 @@ analysis_types:
     display_name: "Flood Detection"
     description: "Detect and monitor flooding events and affected areas"
     model:
-      architecture: "unet"
+      architecture: "flood_unet"
       weights: "models/unet_flood.pth"
       in_channels: 3
       num_classes: 3
+    model_sar:
+      architecture: "flood_unet"
+      weights: "models/unet_flood_sar.pth"
+      in_channels: 5
+      num_classes: 3
     bands: ["B03", "B08", "B11"]  # Green, NIR, SWIR
+    sar_bands: ["VV", "VH"]
     classes: ["dry_land", "permanent_water", "flooded"]
+    scl_clear_labels: [4, 5, 6]    # vegetation, bare soil, water (NO snow/ice)
     thresholds:
       alert_flood_area: 5.0         # Alert if >5% area flooded
       critical_flood_area: 20.0     # Critical if >20% flooded
@@ -74,6 +83,7 @@ analysis_types:
       - "flooded_percentage"
       - "flooded_area_km2"
       - "mndwi_stats"
+      - "affected_road_km"
 
   # Drought Monitoring
   drought:
@@ -152,6 +162,13 @@ satellite:
     resolution: 10  # meters
     cloud_coverage_max: 20  # percentage
     revisit_time: 5  # days
+  
+  sentinel1:
+    bands: ["VV", "VH"]
+    resolution: 10  # meters
+    revisit_time: 6  # days
+    polarization: ["VV", "VH"]
+    orbit: "DESCENDING"
   
   landsat8:
     bands: ["B4", "B3", "B2", "B5"]

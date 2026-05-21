@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+
+import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Literal
@@ -43,7 +45,10 @@ from climatevision.db import (
     mark_alert_delivered,
 )
 from climatevision.inference import run_inference_from_file, run_inference_from_gee
+from climatevision.governance import explain_prediction, SHAPExplainer
 from climatevision.api.auth import require_api_key
+from climatevision.inference.alert_generator import AlertGenerator
+from climatevision.analysis.flooding import FloodingAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -242,59 +247,16 @@ def _load_template_result(
     end_date: Optional[str],
     analysis_type: str = "deforestation",
 ) -> dict[str, Any]:
-    """Load or create a template result for failed inference."""
-    outputs_dir = Path(__file__).resolve().parents[3] / "outputs"
-    template_path = outputs_dir / "inference_results.json"
-    
-    if template_path.exists():
-        template: dict[str, Any] = json.loads(template_path.read_text(encoding="utf-8"))
-    else:
-        # Create analysis-specific template
-        if analysis_type == "ice_melting":
-            template = {
-                "region": {"bbox": bbox or None},
-                "inference": {
-                    "image_size": [256, 256],
-                    "ice_pixels": 0,
-                    "water_pixels": 0,
-                    "land_pixels": 0,
-                    "ice_percentage": 0.0,
-                    "mean_confidence": 0.0,
-                },
-            }
-        elif analysis_type == "flooding":
-            template = {
-                "region": {"bbox": bbox or None},
-                "inference": {
-                    "image_size": [256, 256],
-                    "flooded_pixels": 0,
-                    "dry_pixels": 0,
-                    "water_pixels": 0,
-                    "flooded_percentage": 0.0,
-                    "mean_confidence": 0.0,
-                },
-            }
-        else:  # deforestation (default)
-            template = {
-                "region": {"bbox": bbox or None},
-                "ndvi_stats": {"NDVI_min": 0.0, "NDVI_mean": 0.0, "NDVI_max": 0.0},
-                "inference": {
-                    "image_size": [256, 256],
-                    "forest_pixels": 0,
-                    "non_forest_pixels": 0,
-                    "forest_percentage": 0.0,
-                    "mean_confidence": 0.0,
-                },
-            }
+    """
+    DEPRECATED: Template results are no longer used in production.
 
-    if bbox is not None:
-        template.setdefault("region", {})["bbox"] = bbox
-    if start_date and end_date:
-        template.setdefault("region", {})["date_range"] = f"{start_date} to {end_date}"
-    
-    template["analysis_type"] = analysis_type
-
-    return template
+    This function is retained only for backward compatibility with tests.
+    All production failures now raise HTTPException instead of returning stubs.
+    """
+    raise HTTPException(
+        status_code=503,
+        detail=f"Inference failed for {analysis_type}. No synthetic fallback available in production.",
+    )
 
 
 async def _persist_upload(*, run_id: int, file: UploadFile) -> str:
@@ -364,6 +326,8 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(AuditLogMiddleware)
+    from climatevision.security.api_security import SecurityMiddleware
+    app.add_middleware(SecurityMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -572,8 +536,8 @@ def create_app() -> FastAPI:
         with get_connection() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO runs (kind, status, analysis_type, bbox, start_date, end_date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO runs (kind, status, analysis_type, bbox, start_date, end_date, created_at, updated_at, organization_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     body.kind,
@@ -584,6 +548,7 @@ def create_app() -> FastAPI:
                     body.end_date,
                     created_at,
                     created_at,
+                    org["id"],
                 ),
             )
             run_id = int(cur.lastrowid)
@@ -600,14 +565,36 @@ def create_app() -> FastAPI:
             status = "completed"
         except Exception as exc:
             logger.exception("Inference failed for run %s", run_id)
-            result_payload = _load_template_result(
-                bbox=body.bbox,
-                start_date=body.start_date,
-                end_date=body.end_date,
-                analysis_type=body.analysis_type,
-            )
-            result_payload["error"] = str(exc)
-            status = "failed"
+            raise HTTPException(
+                status_code=503,
+                detail=f"Inference failed: {exc}",
+            ) from exc
+
+        # Generate alerts for flooding
+        if body.analysis_type == "flooding":
+            try:
+                analysis = FloodingAnalysis()
+                metrics = analysis.calculate_metrics(
+                    prediction=np.array([]),  # Will be populated from result
+                    image_size=(256, 256),
+                    bbox=body.bbox,
+                )
+                # TODO: populate metrics from actual prediction mask
+                # For now, use the percentage from inference result
+                flooded_pct = result_payload.get("inference", {}).get("flooded_percentage", 0)
+                metrics["flooded_percentage"] = flooded_pct
+                alerts = analysis.generate_alerts(metrics)
+                for alert in alerts:
+                    create_organization_alert(
+                        org_id=org["id"],
+                        alert_type=alert.alert_type,
+                        severity=alert.severity.value,
+                        title=alert.title,
+                        message=alert.message,
+                        details=alert.details,
+                    )
+            except Exception as exc:
+                logger.warning("Alert generation failed for run %s: %s", run_id, exc)
 
         # Persist result
         result_created_at = _utc_now_iso()
@@ -629,12 +616,12 @@ def create_app() -> FastAPI:
     @app.post("/api/predict/upload")
     async def predict_upload(
         kind: str = Form(default="upload"),
-        org: dict[str, Any] = Depends(require_api_key),
         analysis_type: str = Form(default="deforestation"),
         bbox: str | None = Form(default=None),
         start_date: str | None = Form(default=None),
         end_date: str | None = Form(default=None),
         file: UploadFile = File(...),
+        org: dict[str, Any] = Depends(require_api_key),
     ) -> dict[str, Any]:
         """Run prediction on uploaded satellite imagery file."""
         if start_date and end_date and start_date > end_date:
@@ -652,8 +639,8 @@ def create_app() -> FastAPI:
         with get_connection() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO runs (kind, status, analysis_type, bbox, start_date, end_date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO runs (kind, status, analysis_type, bbox, start_date, end_date, created_at, updated_at, organization_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     kind,
@@ -664,6 +651,7 @@ def create_app() -> FastAPI:
                     end_date,
                     created_at,
                     created_at,
+                    org["id"],
                 ),
             )
             run_id = int(cur.lastrowid)
@@ -683,15 +671,10 @@ def create_app() -> FastAPI:
             status = "completed"
         except Exception as exc:
             logger.exception("Inference failed for upload run %s", run_id)
-            result_payload = _load_template_result(
-                bbox=parsed_bbox,
-                start_date=start_date,
-                end_date=end_date,
-                analysis_type=analysis_type,
-            )
-            result_payload.setdefault("input", {})["file"] = dest
-            result_payload["error"] = str(exc)
-            status = "failed"
+            raise HTTPException(
+                status_code=503,
+                detail=f"Inference failed: {exc}",
+            ) from exc
 
         # Persist result
         result_created_at = _utc_now_iso()

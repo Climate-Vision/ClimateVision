@@ -1,20 +1,14 @@
 """
-Production training entry-point for ClimateVision forest segmentation.
+Production training entry-point for ClimateVision.
 
 Usage:
-  # Train with defaults (generates synthetic data if none exists):
-  python scripts/train.py
+  # Train flood detection model with real data:
+  python scripts/train.py --analysis-type flooding --data-dir data/processed/flood
 
   # Custom config:
-  python scripts/train.py --config config/train.yaml
+  python scripts/train.py --config config/train.yaml --analysis-type flooding
 
-  # Override specific keys:
-  python scripts/train.py --config config/train.yaml \\
-      --data-dir data/processed \\
-      --epochs 50 \\
-      --batch-size 8
-
-  # Resume from a checkpoint:
+  # Resume from checkpoint:
   python scripts/train.py --resume models/my_run/checkpoint_epoch_0030.pth
 """
 from __future__ import annotations
@@ -33,7 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Project root on the Python path so `climatevision` is importable
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
@@ -44,7 +37,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 def _load_yaml(path: str | Path) -> dict:
     try:
-        import yaml  # PyYAML
+        import yaml
     except ImportError:
         logger.error("PyYAML not installed. Run: pip install pyyaml")
         sys.exit(1)
@@ -53,7 +46,6 @@ def _load_yaml(path: str | Path) -> dict:
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override into a copy of base."""
     result = base.copy()
     for k, v in override.items():
         if isinstance(v, dict) and isinstance(result.get(k), dict):
@@ -64,7 +56,6 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def build_config(args: argparse.Namespace) -> dict:
-    """Load YAML config and apply CLI overrides."""
     cfg: dict = {}
 
     if args.config and Path(args.config).exists():
@@ -73,7 +64,6 @@ def build_config(args: argparse.Namespace) -> dict:
     else:
         logger.info("No config file — using defaults")
 
-    # CLI overrides (only non-None values)
     overrides: dict = {}
     if args.data_dir:
         overrides.setdefault("data", {})["dir"] = args.data_dir
@@ -95,51 +85,80 @@ def build_config(args: argparse.Namespace) -> dict:
         overrides.setdefault("data", {})["image_size"] = args.image_size
     if args.arch:
         overrides.setdefault("model", {})["architecture"] = args.arch
+    if args.analysis_type:
+        overrides.setdefault("analysis", {})["type"] = args.analysis_type
 
     cfg = _deep_merge(cfg, overrides)
 
-    # Defaults for any missing keys
+    # Defaults
     cfg.setdefault("data", {})
-    cfg["data"].setdefault("dir",                  "data/processed")
-    cfg["data"].setdefault("image_size",            256)
-    cfg["data"].setdefault("batch_size",             16)
-    cfg["data"].setdefault("num_workers",             4)
+    cfg["data"].setdefault("dir", "data/processed")
+    cfg["data"].setdefault("image_size", 256)
+    cfg["data"].setdefault("batch_size", 16)
+    cfg["data"].setdefault("num_workers", 4)
     cfg["data"].setdefault("use_weighted_sampler", True)
-    cfg["data"].setdefault("pin_memory",           True)
+    cfg["data"].setdefault("pin_memory", True)
+
+    cfg.setdefault("analysis", {})
+    cfg["analysis"].setdefault("type", "deforestation")
+
+    # Auto-configure model defaults based on analysis type BEFORE generic defaults.
+    # When the user explicitly passes --analysis-type on CLI we override config-file
+    # model settings so the architecture matches the data.
+    analysis_type = cfg["analysis"]["type"]
+    explicit_analysis = args.analysis_type is not None  # came from CLI
+
+    if analysis_type == "flooding":
+        forced_arch, forced_ch, forced_cls, forced_enc = "flood_unet", 3, 3, "efficientnet-b7"
+    elif analysis_type == "ice_melting":
+        forced_arch, forced_ch, forced_cls, forced_enc = "attention_unet", 2, 2, None
+    else:  # deforestation
+        forced_arch, forced_ch, forced_cls, forced_enc = "attention_unet", 4, 2, None
 
     cfg.setdefault("model", {})
-    cfg["model"].setdefault("architecture", "attention_unet")
-    cfg["model"].setdefault("in_channels",            4)
-    cfg["model"].setdefault("num_classes",             2)
-    cfg["model"].setdefault("bilinear",            True)
+    # If user explicitly requested an analysis type, force model compatibility.
+    # Otherwise just use setdefault so config file values are respected.
+    if explicit_analysis:
+        cfg["model"]["architecture"] = forced_arch
+        cfg["model"]["in_channels"] = forced_ch
+        cfg["model"]["num_classes"] = forced_cls
+        if forced_enc:
+            cfg["model"]["encoder"] = forced_enc
+    else:
+        cfg["model"].setdefault("architecture", forced_arch)
+        cfg["model"].setdefault("in_channels", forced_ch)
+        cfg["model"].setdefault("num_classes", forced_cls)
+        if forced_enc:
+            cfg["model"].setdefault("encoder", forced_enc)
+    cfg["model"].setdefault("bilinear", True)
 
     cfg.setdefault("loss", {})
-    cfg["loss"].setdefault("type",              "combined")
-    cfg["loss"].setdefault("focal_weight",          0.5)
-    cfg["loss"].setdefault("focal_alpha",           0.25)
-    cfg["loss"].setdefault("focal_gamma",           2.0)
-    cfg["loss"].setdefault("use_class_weights",    True)
+    cfg["loss"].setdefault("type", "combined")
+    cfg["loss"].setdefault("focal_weight", 0.5)
+    cfg["loss"].setdefault("focal_alpha", 0.25)
+    cfg["loss"].setdefault("focal_gamma", 2.0)
+    cfg["loss"].setdefault("use_class_weights", True)
 
     cfg.setdefault("optimizer", {})
-    cfg["optimizer"].setdefault("learning_rate",  1e-4)
-    cfg["optimizer"].setdefault("weight_decay",   1e-4)
-    cfg["optimizer"].setdefault("min_lr",         1e-6)
+    cfg["optimizer"].setdefault("learning_rate", 1e-4)
+    cfg["optimizer"].setdefault("weight_decay", 1e-4)
+    cfg["optimizer"].setdefault("min_lr", 1e-6)
 
     cfg.setdefault("schedule", {})
-    cfg["schedule"].setdefault("epochs",                100)
-    cfg["schedule"].setdefault("warmup_epochs",           5)
-    cfg["schedule"].setdefault("checkpoint_interval",    10)
+    cfg["schedule"].setdefault("epochs", 100)
+    cfg["schedule"].setdefault("warmup_epochs", 5)
+    cfg["schedule"].setdefault("checkpoint_interval", 10)
 
     cfg.setdefault("training", {})
-    cfg["training"].setdefault("mixed_precision",      True)
-    cfg["training"].setdefault("grad_clip",            1.0)
-    cfg["training"].setdefault("use_ema",             True)
-    cfg["training"].setdefault("ema_decay",          0.9999)
+    cfg["training"].setdefault("mixed_precision", True)
+    cfg["training"].setdefault("grad_clip", 1.0)
+    cfg["training"].setdefault("use_ema", True)
+    cfg["training"].setdefault("ema_decay", 0.9999)
     cfg["training"].setdefault("early_stopping_patience", 15)
 
     cfg.setdefault("output", {})
-    cfg["output"].setdefault("save_dir",  "models")
-    cfg["output"].setdefault("run_name",  "")
+    cfg["output"].setdefault("save_dir", "models")
+    cfg["output"].setdefault("run_name", "")
     cfg.setdefault("normalizer_stats", "")
 
     return cfg
@@ -152,12 +171,23 @@ def build_config(args: argparse.Namespace) -> dict:
 def build_model(cfg: dict):
     """Instantiate the segmentation model from config."""
     from climatevision.models.unet import get_model
+    from climatevision.models.flood_unet import build_flood_model
+
     mcfg = cfg["model"]
     arch = mcfg["architecture"]
+    analysis_type = cfg["analysis"]["type"]
+
+    # Flood models use smp-based architectures
+    if arch in ("flood_unet", "flood_unet_s2only"):
+        use_sar = mcfg["in_channels"] == 5
+        return build_flood_model(
+            use_sar=use_sar,
+            encoder_name=mcfg.get("encoder", "efficientnet-b7"),
+        )
 
     kwargs = {
         "n_channels": mcfg["in_channels"],
-        "n_classes":  mcfg["num_classes"],
+        "n_classes": mcfg["num_classes"],
     }
     if arch == "unet":
         kwargs["bilinear"] = mcfg.get("bilinear", True)
@@ -226,7 +256,6 @@ def load_normalizer(cfg: dict):
 # ---------------------------------------------------------------------------
 
 def maybe_resume(model, optimizer, resume_path: str | None) -> int:
-    """Load weights from checkpoint. Returns start epoch (0 if no resume)."""
     if not resume_path:
         return 0
     import torch
@@ -244,29 +273,17 @@ def maybe_resume(model, optimizer, resume_path: str | None) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Auto-generate data if directory is empty
+# Data validation — fail fast if no real data
 # ---------------------------------------------------------------------------
 
-def maybe_generate_data(data_dir: Path, patch_size: int = 256, n_patches: int = 1000) -> None:
+def validate_data_exists(data_dir: Path) -> None:
+    """Fail hard if training data is missing. No synthetic fallback."""
     train_img = data_dir / "train" / "images"
-    if train_img.exists() and any(train_img.glob("*.tif")):
-        return
-
-    logger.warning("No training data found in %s", data_dir)
-    logger.info("Auto-generating %d synthetic patches…", n_patches)
-
-    cmd = [
-        sys.executable, str(PROJECT_ROOT / "scripts" / "prepare_data.py"),
-        "--mode", "synthetic",
-        "--n-patches", str(n_patches),
-        "--patch-size", str(patch_size),
-        "--out", str(data_dir),
-        "--fit-normalizer",
-    ]
-    import subprocess
-    result = subprocess.run(cmd, check=False)
-    if result.returncode != 0:
-        logger.error("Data generation failed — check prepare_data.py output")
+    if not train_img.exists() or not any(train_img.glob("*.tif")):
+        logger.error("No training data found in %s", data_dir)
+        logger.error("Prepare real data before training:")
+        logger.error("  python scripts/prepare_data.py --mode synthetic --n-patches 1000 --out %s", data_dir)
+        logger.error("  # OR download real GEE data")
         sys.exit(1)
 
 
@@ -276,14 +293,13 @@ def maybe_generate_data(data_dir: Path, patch_size: int = 256, n_patches: int = 
 
 def main() -> None:
     args = parse_args()
-    cfg  = build_config(args)
+    cfg = build_config(args)
 
-    # Run name / output directory
+    analysis_type = cfg["analysis"]["type"]
     run_name = cfg["output"]["run_name"] or datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_dir = Path(cfg["output"]["save_dir"]) / run_name
+    save_dir = Path(cfg["output"]["save_dir"]) / f"{analysis_type}_{run_name}"
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # Persist effective config
     try:
         import yaml
         with open(save_dir / "config.yaml", "w") as f:
@@ -291,15 +307,14 @@ def main() -> None:
     except ImportError:
         import json
         with open(save_dir / "config.json", "w") as f:
-            import json
             json.dump(cfg, f, indent=2)
 
     logger.info("Run: %s  →  %s", run_name, save_dir)
 
     # Data
-    data_dir   = Path(cfg["data"]["dir"])
+    data_dir = Path(cfg["data"]["dir"])
     image_size = cfg["data"]["image_size"]
-    maybe_generate_data(data_dir, patch_size=image_size)
+    validate_data_exists(data_dir)
 
     normalizer = load_normalizer(cfg)
 
@@ -312,6 +327,7 @@ def main() -> None:
         normalizer=normalizer,
         pin_memory=cfg["data"]["pin_memory"],
         use_weighted_sampler=cfg["data"]["use_weighted_sampler"],
+        analysis_type=analysis_type,
     )
 
     if "train" not in loaders:
@@ -326,28 +342,28 @@ def main() -> None:
     )
 
     # Class weights
+    num_classes = cfg["model"]["num_classes"]
     class_weights = None
     if cfg["loss"]["use_class_weights"]:
-        class_weights = loaders["train"].dataset.compute_class_weights()
+        class_weights = loaders["train"].dataset.compute_class_weights(num_classes=num_classes)
         logger.info("Class weights: %s", class_weights.tolist())
 
     # Model + loss
-    model     = build_model(cfg)
+    model = build_model(cfg)
     criterion = build_criterion(cfg, class_weights=class_weights)
 
-    # Trainer config dict (flat, as Trainer expects)
     trainer_cfg = {
-        "learning_rate":            cfg["optimizer"]["learning_rate"],
-        "weight_decay":             cfg["optimizer"]["weight_decay"],
-        "min_lr":                   cfg["optimizer"]["min_lr"],
-        "epochs":                   cfg["schedule"]["epochs"],
-        "warmup_epochs":            cfg["schedule"]["warmup_epochs"],
-        "checkpoint_interval":      cfg["schedule"]["checkpoint_interval"],
-        "mixed_precision":          cfg["training"]["mixed_precision"],
-        "grad_clip":                cfg["training"]["grad_clip"],
-        "use_ema":                  cfg["training"]["use_ema"],
-        "ema_decay":                cfg["training"]["ema_decay"],
-        "early_stopping_patience":  cfg["training"]["early_stopping_patience"],
+        "learning_rate": cfg["optimizer"]["learning_rate"],
+        "weight_decay": cfg["optimizer"]["weight_decay"],
+        "min_lr": cfg["optimizer"]["min_lr"],
+        "epochs": cfg["schedule"]["epochs"],
+        "warmup_epochs": cfg["schedule"]["warmup_epochs"],
+        "checkpoint_interval": cfg["schedule"]["checkpoint_interval"],
+        "mixed_precision": cfg["training"]["mixed_precision"],
+        "grad_clip": cfg["training"]["grad_clip"],
+        "use_ema": cfg["training"]["use_ema"],
+        "ema_decay": cfg["training"]["ema_decay"],
+        "early_stopping_patience": cfg["training"]["early_stopping_patience"],
     }
 
     from climatevision.training.trainer import Trainer
@@ -359,7 +375,6 @@ def main() -> None:
         save_dir=save_dir,
     )
 
-    # Optional resume
     if args.resume:
         maybe_resume(model, trainer.optimizer, args.resume)
 
@@ -367,8 +382,10 @@ def main() -> None:
     history = trainer.fit()
     elapsed = time.time() - t_start
 
-    best_iou = max((e.get("iou_forest", 0) for e in history["val"]), default=0)
-    best_f1  = max((e.get("f1",         0) for e in history["val"]), default=0)
+    # Generalize best metric reporting
+    metric_key = f"iou_{analysis_type}"
+    best_iou = max((e.get(metric_key, e.get("iou", 0)) for e in history["val"]), default=0)
+    best_f1 = max((e.get("f1", 0) for e in history["val"]), default=0)
 
     logger.info("=" * 60)
     logger.info("Training complete in %.1f min", elapsed / 60)
@@ -388,20 +405,22 @@ def main() -> None:
 # ---------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Train ClimateVision forest segmentation model")
-    p.add_argument("--config",     default=str(PROJECT_ROOT / "config" / "train.yaml"),
+    p = argparse.ArgumentParser(description="Train ClimateVision segmentation model")
+    p.add_argument("--config", default=str(PROJECT_ROOT / "config" / "train.yaml"),
                    help="Path to YAML config file")
-    p.add_argument("--data-dir",   default=None, help="Override data.dir")
-    p.add_argument("--epochs",     type=int, default=None, help="Override schedule.epochs")
+    p.add_argument("--analysis-type", default=None,
+                   help="Analysis type: deforestation, flooding, ice_melting")
+    p.add_argument("--data-dir", default=None, help="Override data.dir")
+    p.add_argument("--epochs", type=int, default=None, help="Override schedule.epochs")
     p.add_argument("--batch-size", type=int, default=None, help="Override data.batch_size")
-    p.add_argument("--lr",         type=float, default=None, help="Override optimizer.learning_rate")
-    p.add_argument("--save-dir",   default=None, help="Override output.save_dir")
-    p.add_argument("--run-name",   default=None, help="Override output.run_name")
-    p.add_argument("--resume",     default=None, help="Path to checkpoint to resume from")
-    p.add_argument("--arch",       choices=["unet", "attention_unet"], default=None)
-    p.add_argument("--no-amp",      action="store_true", help="Disable mixed-precision (AMP)")
-    p.add_argument("--num-workers",  type=int, default=None, help="DataLoader worker count (0=main process)")
-    p.add_argument("--image-size",   type=int, default=None, help="Spatial crop size in pixels")
+    p.add_argument("--lr", type=float, default=None, help="Override optimizer.learning_rate")
+    p.add_argument("--save-dir", default=None, help="Override output.save_dir")
+    p.add_argument("--run-name", default=None, help="Override output.run_name")
+    p.add_argument("--resume", default=None, help="Path to checkpoint to resume from")
+    p.add_argument("--arch", choices=["unet", "attention_unet", "flood_unet", "flood_unet_s2only"], default=None)
+    p.add_argument("--no-amp", action="store_true", help="Disable mixed-precision (AMP)")
+    p.add_argument("--num-workers", type=int, default=None, help="DataLoader worker count (0=main process)")
+    p.add_argument("--image-size", type=int, default=None, help="Spatial crop size in pixels")
     return p.parse_args()
 
 

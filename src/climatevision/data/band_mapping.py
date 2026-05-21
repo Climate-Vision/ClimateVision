@@ -1,5 +1,5 @@
 """
-Analysis-specific Sentinel-2 band mapping utilities.
+Analysis-specific satellite band mapping utilities.
 
 Provides a single source of truth for which spectral bands each
 climate analysis type requires, derived from config.yaml.
@@ -22,6 +22,9 @@ SENTINEL2_BAND_ORDER = [
     "B8A", "B09", "B10", "B11", "B12",
 ]
 
+# Sentinel-1 SAR bands
+SENTINEL1_BAND_ORDER = ["VV", "VH"]
+
 # Scene Classification Layer (SCL) is not part of the 13 reflectance bands
 # but is essential for cloud masking.
 SCL_BAND = "SCL"
@@ -36,7 +39,7 @@ def _load_config() -> dict[str, Any]:
 
 def get_bands_for_analysis(analysis_type: str) -> list[str]:
     """
-    Return the Sentinel-2 band names required for *analysis_type*.
+    Return the satellite band names required for *analysis_type*.
 
     The bands are read from ``config.yaml`` and are guaranteed to be
     returned in the same order they are declared there.
@@ -69,9 +72,6 @@ def get_band_indices(band_names: list[str]) -> list[int]:
     indices = []
     for b in band_names:
         if b == SCL_BAND:
-            # SCL does not belong to the 13 reflectance bands;
-            # callers that need an index in a multi-band array should
-            # append it separately and compute len(reflectance_bands).
             raise ValueError(
                 f"SCL is not part of the 13-band reflectance stack. "
                 f"Append it manually after resolving reflectance indices."
@@ -79,6 +79,16 @@ def get_band_indices(band_names: list[str]) -> list[int]:
         if b not in SENTINEL2_BAND_ORDER:
             raise ValueError(f"Unknown Sentinel-2 band: {b}")
         indices.append(SENTINEL2_BAND_ORDER.index(b))
+    return indices
+
+
+def get_sar_band_indices(band_names: list[str]) -> list[int]:
+    """Map Sentinel-1 band names to zero-based indices."""
+    indices = []
+    for b in band_names:
+        if b not in SENTINEL1_BAND_ORDER:
+            raise ValueError(f"Unknown Sentinel-1 band: {b}")
+        indices.append(SENTINEL1_BAND_ORDER.index(b))
     return indices
 
 
@@ -109,3 +119,9 @@ def get_model_config(analysis_type: str) -> dict[str, Any]:
     cfg = _load_config()
     analysis_cfg = cfg.get("analysis_types", {}).get(analysis_type, {})
     return dict(analysis_cfg.get("model", {}))
+
+
+def get_analysis_config(analysis_type: str) -> dict[str, Any]:
+    """Return the full analysis type configuration dict."""
+    cfg = _load_config()
+    return dict(cfg.get("analysis_types", {}).get(analysis_type, {}))

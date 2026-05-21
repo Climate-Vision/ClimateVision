@@ -1,9 +1,8 @@
 """
 Google Earth Engine tile downloader for ClimateVision.
 
-Provides analysis-aware Sentinel-2 tile downloads with a synthetic fallback
-when GEE credentials are unavailable. Downloaded tiles are saved as GeoTIFF
-and include a metadata dict that labels synthetic scenes explicitly.
+Provides analysis-aware Sentinel-2 and Sentinel-1 tile downloads.
+GEE failures raise explicit exceptions — NO synthetic fallbacks in production.
 """
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ import os
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -41,6 +40,22 @@ _BAND_NAME_TO_GEE = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+class GEEAuthenticationError(RuntimeError):
+    """Raised when GEE credentials are missing or invalid."""
+
+
+class TileNotFoundError(RuntimeError):
+    """Raised when no satellite images are found for the given criteria."""
+
+
+# ---------------------------------------------------------------------------
+# GEE initialisation
+# ---------------------------------------------------------------------------
+
 def _initialize_ee() -> Any:
     """Lazy import and initialise Google Earth Engine."""
     import ee  # noqa
@@ -62,16 +77,9 @@ def _initialize_ee() -> Any:
     return ee
 
 
-def _get_default_tile_size() -> int:
-    """Read the default tile size from config.yaml."""
-    import yaml
-
-    config_path = _PROJECT_ROOT / "config.yaml"
-    with open(config_path, "r") as f:
-        cfg = yaml.safe_load(f)
-    image_size = cfg.get("data", {}).get("image_size", [256, 256])
-    return int(image_size[0])
-
+# ---------------------------------------------------------------------------
+# Sentinel-2 download
+# ---------------------------------------------------------------------------
 
 def download_tile_for_analysis(
     bbox: list[float],
@@ -95,8 +103,11 @@ def download_tile_for_analysis(
         include_scl: Whether to append the SCL band for cloud masking.
 
     Returns:
-        (file_path, metadata_dict).  If GEE is unavailable, the synthetic
-        fallback is used and ``metadata["is_synthetic"]`` is ``True``.
+        (file_path, metadata_dict).
+
+    Raises:
+        GEEAuthenticationError: If GEE cannot be initialised.
+        TileNotFoundError: If no images are found for the date range.
     """
     if output_dir is None:
         output_dir = _SATELLITE_DIR
@@ -112,14 +123,10 @@ def download_tile_for_analysis(
         ee = _initialize_ee()
         rasterio = __import__("rasterio")
     except Exception as exc:
-        logger.warning("GEE unavailable (%s). Using synthetic fallback.", exc)
-        return _generate_synthetic_tile(
-            bbox=bbox,
-            start_date=start_date,
-            end_date=end_date,
-            analysis_type=analysis_type,
-            out_path=out_path,
-        )
+        raise GEEAuthenticationError(
+            f"Google Earth Engine unavailable: {exc}. "
+            f"Set GEE_PROJECT_ID or GEE_SERVICE_ACCOUNT + GEE_SERVICE_ACCOUNT_KEY."
+        ) from exc
 
     bands = get_bands_for_analysis(analysis_type)
     gee_bands = [_BAND_NAME_TO_GEE[b] for b in bands]
@@ -137,16 +144,9 @@ def download_tile_for_analysis(
 
     count = collection.size().getInfo()
     if count == 0:
-        logger.warning(
-            "No GEE images found for %s %s to %s. Using synthetic fallback.",
-            analysis_type, start_date, end_date,
-        )
-        return _generate_synthetic_tile(
-            bbox=bbox,
-            start_date=start_date,
-            end_date=end_date,
-            analysis_type=analysis_type,
-            out_path=out_path,
+        raise TileNotFoundError(
+            f"No Sentinel-2 images found for {analysis_type} "
+            f"from {start_date} to {end_date} in bbox {bbox}."
         )
 
     image = collection.median().clip(region)
@@ -166,8 +166,6 @@ def download_tile_for_analysis(
 
     os.unlink(tmp)
 
-    # Re-order bands to match project convention if needed
-    # (GEE returns in selection order)
     profile.update(
         driver="GTiff",
         dtype="float32",
@@ -179,6 +177,7 @@ def download_tile_for_analysis(
 
     metadata: dict[str, Any] = {
         "source": "gee",
+        "satellite": "sentinel2",
         "analysis_type": analysis_type,
         "bbox": bbox,
         "start_date": start_date,
@@ -186,75 +185,123 @@ def download_tile_for_analysis(
         "bands": bands,
         "scale_m": scale_m,
         "images_available": count,
-        "is_synthetic": False,
         "shape": list(data.shape),
     }
 
-    logger.info("Downloaded real tile to %s (%d images available)", out_path, count)
+    logger.info("Downloaded S2 tile to %s (%d images available)", out_path, count)
     return out_path, metadata
 
 
-def _generate_synthetic_tile(
+# ---------------------------------------------------------------------------
+# Sentinel-1 SAR download
+# ---------------------------------------------------------------------------
+
+def download_s1_tile(
     bbox: list[float],
     start_date: str,
     end_date: str,
-    analysis_type: str,
-    out_path: Path,
+    polarization: list[str] | None = None,
+    output_dir: str | Path | None = None,
+    scale_m: int = 100,
+    orbit: str = "DESCENDING",
 ) -> tuple[Path, dict[str, Any]]:
     """
-    Generate a physically plausible synthetic Sentinel-2 tile when GEE fails.
-    The output is explicitly tagged ``is_synthetic: True``.
+    Download a median Sentinel-1 SAR composite for the given bbox and date range.
+
+    Args:
+        bbox: [west, south, east, north] in WGS84.
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        polarization: List of polarizations, e.g., ["VV", "VH"]. Defaults to both.
+        output_dir: Where to save the GeoTIFF.
+        scale_m: GEE export resolution in metres.
+        orbit: "ASCENDING", "DESCENDING", or "BOTH".
+
+    Returns:
+        (file_path, metadata_dict).
+
+    Raises:
+        GEEAuthenticationError: If GEE cannot be initialised.
+        TileNotFoundError: If no SAR images are found.
     """
-    rasterio = __import__("rasterio")
+    if output_dir is None:
+        output_dir = _SATELLITE_DIR
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    bands = get_bands_for_analysis(analysis_type)
-    n_bands = len(bands)
-    tile_size = _get_default_tile_size()
-    h, w = tile_size, tile_size
+    if polarization is None:
+        polarization = ["VV", "VH"]
 
-    # Seed RNG from bbox so the same region is deterministic
-    seed = int(abs(sum(v * 1000 * (i + 1) for i, v in enumerate(bbox)))) % (2 ** 31)
-    rng = np.random.default_rng(seed)
+    safe_start = start_date.replace("-", "")
+    safe_end = end_date.replace("-", "")
+    stem = f"s1_{safe_start}_{safe_end}_{'_'.join(str(round(c, 4)) for c in bbox)}"
+    out_path = output_dir / f"{stem}.tif"
 
-    # Build a synthetic stack: draw reflectance values typical for mixed forest
-    data = np.zeros((n_bands, h, w), dtype=np.float32)
-    for b in range(n_bands):
-        mean = rng.uniform(500.0, 3000.0)
-        std = rng.uniform(200.0, 800.0)
-        data[b] = rng.normal(mean, std, (h, w)).clip(0.0, 10000.0)
+    try:
+        ee = _initialize_ee()
+        rasterio = __import__("rasterio")
+    except Exception as exc:
+        raise GEEAuthenticationError(
+            f"Google Earth Engine unavailable: {exc}."
+        ) from exc
 
-    # Append an SCL band (all clear = 4)
-    scl = np.full((1, h, w), 4, dtype=np.float32)
-    data = np.concatenate([data, scl], axis=0)
-
-    transform = rasterio.transform.from_bounds(
-        bbox[0], bbox[1], bbox[2], bbox[3], w, h
+    region = ee.Geometry.Rectangle(bbox)
+    collection = (
+        ee.ImageCollection("COPERNICUS/S1_GRD")
+        .filterBounds(region)
+        .filterDate(start_date, end_date)
+        .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
+        .select(polarization)
     )
-    profile = {
-        "driver": "GTiff",
-        "dtype": "float32",
-        "count": data.shape[0],
-        "height": h,
-        "width": w,
-        "crs": "EPSG:4326",
-        "transform": transform,
-    }
+
+    if orbit != "BOTH":
+        collection = collection.filter(ee.Filter.eq("orbitProperties_pass", orbit))
+
+    count = collection.size().getInfo()
+    if count == 0:
+        raise TileNotFoundError(
+            f"No Sentinel-1 images found from {start_date} to {end_date} in bbox {bbox}."
+        )
+
+    # Convert to linear intensity from dB scale
+    image = collection.median().clip(region)
+    image = image.pow(2)  # GEE S1 is in dB; convert to linear intensity for ML
+
+    url = image.getDownloadURL({
+        "region": region,
+        "scale": scale_m,
+        "format": "GEO_TIFF",
+    })
+
+    tmp = tempfile.mktemp(suffix=".tif")
+    urllib.request.urlretrieve(url, tmp)
+
+    with rasterio.open(tmp) as src:
+        data = src.read().astype(np.float32)
+        profile = src.profile
+
+    os.unlink(tmp)
+
+    profile.update(
+        driver="GTiff",
+        dtype="float32",
+        count=data.shape[0],
+    )
 
     with rasterio.open(out_path, "w", **profile) as dst:
         dst.write(data)
 
     metadata: dict[str, Any] = {
-        "source": "synthetic_fallback",
-        "analysis_type": analysis_type,
+        "source": "gee",
+        "satellite": "sentinel1",
         "bbox": bbox,
         "start_date": start_date,
         "end_date": end_date,
-        "bands": bands,
-        "scale_m": 100,
-        "images_available": 0,
-        "is_synthetic": True,
+        "polarization": polarization,
+        "scale_m": scale_m,
+        "images_available": count,
         "shape": list(data.shape),
     }
 
-    logger.info("Generated synthetic fallback tile to %s", out_path)
+    logger.info("Downloaded S1 tile to %s (%d images available)", out_path, count)
     return out_path, metadata
