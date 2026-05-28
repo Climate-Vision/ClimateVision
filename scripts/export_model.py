@@ -46,30 +46,63 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 # Model loading
 # ---------------------------------------------------------------------------
 
+def _load_run_config(ckpt_path: Path) -> dict:
+    """Load the full training config from the run directory."""
+    run_dir = ckpt_path.parent
+    config_path = run_dir / "config.yaml"
+    if config_path.exists():
+        try:
+            import yaml
+            with open(config_path) as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            pass
+    return {}
+
+
 def load_model(ckpt_path: Path) -> tuple[nn.Module, dict]:
     from climatevision.models.unet import get_model
+    from climatevision.models.flood_unet import build_flood_model
 
     ckpt = torch.load(ckpt_path, map_location="cpu")
-    cfg  = ckpt.get("cfg", {})
+    # Trainer cfg is in ckpt['cfg']; full model cfg is in config.yaml next to checkpoint
+    cfg = _load_run_config(ckpt_path)
+    if not cfg:
+        cfg = ckpt.get("cfg", {})
 
     arch = cfg.get("model", {}).get("architecture", "attention_unet")
     state = ckpt.get("ema_state_dict") or ckpt.get("model_state_dict", ckpt)
 
-    # Infer in_channels from weight shape
-    in_ch = 4
+    # Infer in_channels and n_classes from weight shape
+    in_ch = cfg.get("model", {}).get("in_channels", 4)
+    n_classes = cfg.get("model", {}).get("num_classes", 2)
     for key, val in state.items():
-        if "inc" in key and "weight" in key and val.ndim == 4:
-            in_ch = val.shape[1]
-            break
+        if val.ndim == 4:
+            if val.shape[1] in (3, 4, 5) and "encoder" not in key and "down" not in key:
+                # first conv layer — input channels
+                in_ch = val.shape[1]
+            if val.shape[0] in (2, 3) and ("outc" in key or "segmentation_head" in key or "classifier" in key):
+                # final conv layer — output classes
+                n_classes = val.shape[0]
 
-    model = get_model(arch, n_channels=in_ch, n_classes=2)
+    # Flood models use smp-based architectures
+    if arch in ("flood_unet", "flood_unet_s2only"):
+        use_sar = in_ch == 5
+        model = build_flood_model(
+            use_sar=use_sar,
+            encoder_name=cfg.get("model", {}).get("encoder", "efficientnet-b7"),
+        )
+    else:
+        model = get_model(arch, n_channels=in_ch, n_classes=n_classes)
+
     model.load_state_dict(state, strict=False)
     model.eval()
 
     logger.info(
-        "Loaded %s  (in_channels=%d)  from epoch %d  val_iou=%.4f",
+        "Loaded %s  (in_channels=%d, classes=%d)  from epoch %d  val_iou=%.4f",
         arch,
         in_ch,
+        n_classes,
         ckpt.get("epoch", 0),
         ckpt.get("val_iou", 0.0),
     )
@@ -233,7 +266,7 @@ def main() -> None:
         "checkpoint":        str(ckpt_path),
         "architecture":      cfg.get("model", {}).get("architecture", "unknown"),
         "in_channels":       in_channels,
-        "num_classes":       2,
+        "num_classes":       cfg.get("model", {}).get("num_classes", 2),
         "image_size":        image_size,
         "onnx_opset":        args.opset,
         "onnx_path":         str(onnx_path),

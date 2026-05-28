@@ -68,6 +68,9 @@ class APIKeyAuth:
         """
         Validate an API key and return organization context.
 
+        Queries the SQLite database for an organization matching the
+        SHA-256 hash of the provided API key.
+
         Args:
             api_key: The API key to validate
 
@@ -85,15 +88,36 @@ class APIKeyAuth:
                 "demo": True,
             }
 
-        # Check cache first
         key_hash = self.hash_key(api_key)
+
+        # Check cache first
         if key_hash in self._key_cache:
             cached = self._key_cache[key_hash]
             if cached.get("expires_at", datetime.max) > datetime.utcnow():
                 return cached.get("org")
 
-        # Would query database in production
-        # For now, return None to indicate key not found
+        # Query database
+        try:
+            from climatevision.db import get_connection
+            with get_connection() as conn:
+                row = conn.execute(
+                    "SELECT id, name, type, api_key FROM organizations WHERE api_key = ?",
+                    (key_hash,),
+                ).fetchone()
+                if row:
+                    org = {
+                        "id": row["id"],
+                        "name": row["name"],
+                        "type": row["type"],
+                    }
+                    self._key_cache[key_hash] = {
+                        "org": org,
+                        "expires_at": datetime.max,
+                    }
+                    return org
+        except Exception as exc:
+            logger.warning("Database query failed during API key validation: %s", exc)
+
         return None
 
     def revoke_key(self, api_key: str) -> bool:

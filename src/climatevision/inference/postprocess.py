@@ -1,14 +1,14 @@
 """
-Post-processing utilities for inference pipeline.
+Inference post-processing utilities.
 
-Provides confidence thresholding, output filtering, and anomaly detection
-for model predictions before they are returned to users.
+Provides:
+- Confidence thresholding and small-region removal
+- Sliding-window tiling for large-region inference
+- Anomaly detection and quality scoring
 """
-
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -16,214 +16,241 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PostProcessConfig:
-    """Configuration for post-processing operations."""
-    confidence_threshold: float = 0.5
-    min_region_pixels: int = 100
-    anomaly_std_threshold: float = 3.0
-    smooth_kernel_size: int = 3
-    apply_morphological_ops: bool = True
-
-
-@dataclass
-class PostProcessResult:
-    """Result from post-processing operations."""
-    mask: np.ndarray
-    confidence_map: np.ndarray
-    filtered_pixels: int
-    anomaly_detected: bool
-    anomaly_regions: list[dict[str, Any]]
-    quality_score: float
-
+# ---------------------------------------------------------------------------
+# Confidence thresholding
+# ---------------------------------------------------------------------------
 
 def apply_confidence_threshold(
-    predictions: np.ndarray,
-    confidence: np.ndarray,
-    threshold: float = 0.5
+    probabilities: np.ndarray,
+    threshold: float = 0.5,
 ) -> np.ndarray:
     """
-    Filter predictions below confidence threshold.
+    Mask out predictions where max class probability is below threshold.
 
     Args:
-        predictions: Model prediction mask (H, W) or (H, W, C)
-        confidence: Confidence scores (H, W)
-        threshold: Minimum confidence to keep prediction
+        probabilities: (C, H, W) softmax probabilities.
+        threshold: Minimum confidence to keep a prediction.
 
     Returns:
-        Filtered prediction mask with low-confidence pixels zeroed
+        (H, W) integer mask with -1 for low-confidence pixels.
     """
-    mask = confidence >= threshold
-    filtered = predictions.copy()
+    max_prob = probabilities.max(axis=0)
+    predictions = probabilities.argmax(axis=0)
+    predictions[max_prob < threshold] = -1
+    return predictions
 
-    if filtered.ndim == 2:
-        filtered[~mask] = 0
-    else:
-        filtered[~mask, :] = 0
 
-    filtered_count = (~mask).sum()
-    logger.debug(f"Filtered {filtered_count} pixels below threshold {threshold}")
-
-    return filtered
-
+# ---------------------------------------------------------------------------
+# Small-region removal
+# ---------------------------------------------------------------------------
 
 def remove_small_regions(
     mask: np.ndarray,
-    min_pixels: int = 100
+    min_size: int = 50,
+    connectivity: int = 1,
 ) -> np.ndarray:
     """
-    Remove small isolated regions from segmentation mask.
+    Remove connected components smaller than min_size pixels.
 
     Args:
-        mask: Binary segmentation mask (H, W)
-        min_pixels: Minimum region size to keep
+        mask: (H, W) binary or integer label mask.
+        min_size: Minimum component size to retain.
+        connectivity: 1 for 4-connectivity, 2 for 8-connectivity.
 
     Returns:
-        Cleaned mask with small regions removed
+        Cleaned mask with small regions removed (set to 0).
     """
     try:
         from scipy import ndimage
     except ImportError:
-        logger.warning("scipy not available, skipping small region removal")
+        logger.warning("scipy not available; skipping small-region removal")
         return mask
 
-    labeled, num_features = ndimage.label(mask)
-
-    cleaned = np.zeros_like(mask)
-    for i in range(1, num_features + 1):
-        region = labeled == i
-        if region.sum() >= min_pixels:
-            cleaned[region] = mask[region]
-
-    removed = num_features - len(np.unique(ndimage.label(cleaned)[0])) + 1
-    logger.debug(f"Removed {removed} regions smaller than {min_pixels} pixels")
+    cleaned = mask.copy()
+    unique_labels = np.unique(mask)
+    for label in unique_labels:
+        if label == 0:
+            continue
+        binary = (mask == label).astype(np.uint8)
+        labeled, num_features = ndimage.label(binary, structure=ndimage.generate_binary_structure(2, connectivity))
+        component_sizes = ndimage.sum(binary, labeled, index=range(1, num_features + 1))
+        too_small = component_sizes < min_size
+        remove_mask = too_small[labeled - 1]
+        cleaned[(mask == label) & remove_mask] = 0
 
     return cleaned
 
 
+# ---------------------------------------------------------------------------
+# Anomaly detection
+# ---------------------------------------------------------------------------
+
 def detect_anomalies(
-    predictions: np.ndarray,
-    confidence: np.ndarray,
-    std_threshold: float = 3.0
-) -> tuple[bool, list[dict[str, Any]]]:
+    prediction: np.ndarray,
+    expected_classes: list[int],
+) -> dict[str, Any]:
     """
-    Detect anomalous predictions that may indicate model issues.
+    Flag anomalous predictions (unexpected class labels, extreme coverage).
 
     Args:
-        predictions: Model predictions
-        confidence: Confidence scores
-        std_threshold: Number of standard deviations for anomaly detection
+        prediction: (H, W) integer mask.
+        expected_classes: List of valid class indices.
 
     Returns:
-        Tuple of (anomaly_detected, list of anomaly regions)
+        Dict with anomaly flags and descriptions.
     """
     anomalies = []
+    unique = np.unique(prediction)
+    unexpected = set(unique) - set(expected_classes)
+    if unexpected:
+        anomalies.append(f"Unexpected class labels: {unexpected}")
 
-    mean_conf = confidence.mean()
-    std_conf = confidence.std()
+    total = prediction.size
+    for cls in expected_classes:
+        pct = (prediction == cls).sum() / total * 100
+        if pct > 95:
+            anomalies.append(f"Class {cls} dominates ({pct:.1f}% — possible model collapse)")
 
-    if std_conf > 0:
-        z_scores = np.abs((confidence - mean_conf) / std_conf)
-        anomaly_mask = z_scores > std_threshold
+    return {
+        "is_anomalous": len(anomalies) > 0,
+        "anomalies": anomalies,
+    }
 
-        if anomaly_mask.any():
-            anomaly_indices = np.where(anomaly_mask)
-            anomalies.append({
-                "type": "confidence_outlier",
-                "count": int(anomaly_mask.sum()),
-                "mean_confidence": float(mean_conf),
-                "std_confidence": float(std_conf),
-                "threshold": std_threshold
-            })
 
-    # Check for suspiciously uniform predictions
-    unique_values = len(np.unique(predictions))
-    if unique_values == 1 and predictions.size > 1000:
-        anomalies.append({
-            "type": "uniform_prediction",
-            "message": "Model returned uniform predictions across entire region"
-        })
-
-    return len(anomalies) > 0, anomalies
-
+# ---------------------------------------------------------------------------
+# Quality scoring
+# ---------------------------------------------------------------------------
 
 def compute_quality_score(
+    prediction: np.ndarray,
     confidence: np.ndarray,
-    filtered_ratio: float,
-    anomaly_detected: bool
 ) -> float:
     """
-    Compute overall quality score for the prediction.
+    Compute an overall quality score [0, 1] for a prediction.
 
-    Args:
-        confidence: Confidence map
-        filtered_ratio: Ratio of pixels filtered out
-        anomaly_detected: Whether anomalies were detected
-
-    Returns:
-        Quality score between 0 and 1
+    Based on mean confidence and class balance.
     """
-    mean_confidence = float(confidence.mean())
-    confidence_score = min(mean_confidence, 1.0)
+    mean_conf = float(confidence.mean())
+    total = prediction.size
+    class_balance = 1.0
+    unique, counts = np.unique(prediction, return_counts=True)
+    if len(unique) > 1:
+        max_pct = counts.max() / total
+        class_balance = 1.0 - max(0, max_pct - 0.8) / 0.2  # penalize if one class > 80%
 
-    filter_penalty = filtered_ratio * 0.3
-    anomaly_penalty = 0.2 if anomaly_detected else 0.0
-
-    quality = max(0.0, confidence_score - filter_penalty - anomaly_penalty)
-    return round(quality, 4)
+    return round(mean_conf * 0.7 + class_balance * 0.3, 4)
 
 
-def postprocess_predictions(
-    predictions: np.ndarray,
-    confidence: np.ndarray,
-    config: Optional[PostProcessConfig] = None
-) -> PostProcessResult:
+# ---------------------------------------------------------------------------
+# Sliding-window tiling for large regions
+# ---------------------------------------------------------------------------
+
+class SlidingWindowTiler:
     """
-    Apply full post-processing pipeline to model predictions.
-
-    Args:
-        predictions: Raw model predictions (H, W) or (H, W, C)
-        confidence: Confidence scores (H, W)
-        config: Post-processing configuration
-
-    Returns:
-        PostProcessResult with filtered predictions and quality metrics
+    Tile large images into overlapping patches for inference,
+    then stitch predictions back with soft-voting in overlap regions.
     """
-    if config is None:
-        config = PostProcessConfig()
 
-    original_pixels = predictions.size
+    def __init__(
+        self,
+        tile_size: int = 256,
+        overlap: int = 32,
+    ):
+        assert overlap < tile_size, "overlap must be smaller than tile_size"
+        self.tile_size = tile_size
+        self.overlap = overlap
+        self.stride = tile_size - overlap
 
-    # Apply confidence threshold
-    filtered = apply_confidence_threshold(
-        predictions, confidence, config.confidence_threshold
-    )
+    def generate_tiles(
+        self,
+        image: np.ndarray,
+    ) -> list[tuple[int, int, np.ndarray]]:
+        """
+        Generate (row, col, tile) tuples from a (C, H, W) image.
 
-    # Remove small regions for binary masks
-    if filtered.ndim == 2:
-        filtered = remove_small_regions(filtered, config.min_region_pixels)
+        row and col are the top-left coordinates in the original image.
+        """
+        c, h, w = image.shape
+        tiles = []
+        for y in range(0, h - self.tile_size + 1, self.stride):
+            for x in range(0, w - self.tile_size + 1, self.stride):
+                tile = image[:, y:y + self.tile_size, x:x + self.tile_size]
+                tiles.append((y, x, tile))
 
-    # Detect anomalies
-    anomaly_detected, anomaly_regions = detect_anomalies(
-        predictions, confidence, config.anomaly_std_threshold
-    )
+        # Handle edge cases: last row/col if not perfectly divisible
+        if h % self.stride != 0 and h > self.tile_size:
+            y = h - self.tile_size
+            for x in range(0, w - self.tile_size + 1, self.stride):
+                tile = image[:, y:y + self.tile_size, x:x + self.tile_size]
+                tiles.append((y, x, tile))
+        if w % self.stride != 0 and w > self.tile_size:
+            x = w - self.tile_size
+            for y in range(0, h - self.tile_size + 1, self.stride):
+                tile = image[:, y:y + self.tile_size, x:x + self.tile_size]
+                tiles.append((y, x, tile))
+        if h % self.stride != 0 and w % self.stride != 0 and h > self.tile_size and w > self.tile_size:
+            y = h - self.tile_size
+            x = w - self.tile_size
+            tile = image[:, y:y + self.tile_size, x:x + self.tile_size]
+            tiles.append((y, x, tile))
 
-    # Compute metrics
-    filtered_pixels = int((filtered == 0).sum())
-    filtered_ratio = filtered_pixels / max(original_pixels, 1)
+        return tiles
 
-    quality_score = compute_quality_score(
-        confidence, filtered_ratio, anomaly_detected
-    )
+    def stitch_predictions(
+        self,
+        tiles: list[tuple[int, int, np.ndarray]],
+        image_shape: tuple[int, int, int],
+        num_classes: int,
+    ) -> np.ndarray:
+        """
+        Stitch per-tile predictions into a full-size prediction mask.
 
-    if anomaly_detected:
-        logger.warning(f"Anomalies detected in prediction: {anomaly_regions}")
+        Args:
+            tiles: List of (row, col, pred_mask) where pred_mask is (H, W) int.
+            image_shape: (C, H, W) original image shape.
+            num_classes: Number of classes.
 
-    return PostProcessResult(
-        mask=filtered,
-        confidence_map=confidence,
-        filtered_pixels=filtered_pixels,
-        anomaly_detected=anomaly_detected,
-        anomaly_regions=anomaly_regions,
-        quality_score=quality_score
-    )
+        Returns:
+            (H, W) stitched prediction mask.
+        """
+        c, h, w = image_shape
+        vote_counts = np.zeros((num_classes, h, w), dtype=np.float32)
+
+        for y, x, pred in tiles:
+            th, tw = pred.shape
+            for cls in range(num_classes):
+                vote_counts[cls, y:y + th, x:x + tw] += (pred == cls).astype(np.float32)
+
+        # Class with most votes wins
+        stitched = vote_counts.argmax(axis=0)
+        return stitched
+
+    def stitch_probabilities(
+        self,
+        tiles: list[tuple[int, int, np.ndarray]],
+        image_shape: tuple[int, int, int],
+    ) -> np.ndarray:
+        """
+        Stitch per-tile probability maps with averaging in overlap regions.
+
+        Args:
+            tiles: List of (row, col, probs) where probs is (C, H, W) float.
+            image_shape: (C, H, W) original image shape.
+
+        Returns:
+            (num_classes, H, W) averaged probability map.
+        """
+        c, h, w = image_shape
+        num_classes = tiles[0][2].shape[0]
+        prob_sum = np.zeros((num_classes, h, w), dtype=np.float32)
+        count = np.zeros((h, w), dtype=np.float32)
+
+        for y, x, probs in tiles:
+            _, th, tw = probs.shape
+            prob_sum[:, y:y + th, x:x + tw] += probs
+            count[y:y + th, x:x + tw] += 1.0
+
+        # Avoid divide by zero
+        count = np.clip(count, 1e-8, None)
+        averaged = prob_sum / count[np.newaxis, :, :]
+        return averaged

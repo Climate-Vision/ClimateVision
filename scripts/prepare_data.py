@@ -1,22 +1,19 @@
 """
-Data preparation script for ClimateVision forest segmentation.
+Data preparation script for ClimateVision.
 
-Two modes:
-  --mode synthetic   Generate fractal-noise synthetic Sentinel-2 patches (no data required)
+Modes:
+  --mode synthetic   Generate synthetic patches for testing/smoke tests
   --mode gee         Download real Sentinel-2 L2A tiles via Google Earth Engine
 
 Usage:
-  # Quick start — 2 000 synthetic patches, default 70/15/15 split:
-  python scripts/prepare_data.py --mode synthetic --n-patches 2000 --out data/processed
+  # Synthetic flood patches for testing:
+  python scripts/prepare_data.py --mode synthetic --analysis-type flooding --n-patches 200 --out data/processed/flood
 
-  # Fewer patches for a fast smoke test:
-  python scripts/prepare_data.py --mode synthetic --n-patches 200 --out data/processed
-
-  # Real data via GEE (requires authenticated `earthengine-api`):
-  python scripts/prepare_data.py --mode gee \\
-      --bbox 2.3 48.8 2.5 49.0 \\
-      --start 2022-01-01 --end 2023-12-31 \\
-      --out data/processed
+  # Real data via GEE:
+  python scripts/prepare_data.py --mode gee --analysis-type flooding \
+      --bbox 36.7 -1.4 37.0 -1.1 \
+      --start 2024-04-01 --end 2024-04-10 \
+      --out data/processed/flood
 """
 from __future__ import annotations
 
@@ -41,38 +38,51 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 # ---------------------------------------------------------------------------
 
 def generate_synthetic(
+    analysis_type: str,
     n_patches: int,
     out_dir: Path,
     patch_size: int,
     train_ratio: float,
     val_ratio: float,
 ) -> None:
-    """Delegate entirely to the built-in synthetic generator."""
-    try:
-        from climatevision.data.synthetic import generate_synthetic_dataset
-    except ImportError as exc:
-        logger.error("Cannot import climatevision package: %s", exc)
-        logger.error("Run `pip install -e .` from the project root first.")
-        sys.exit(1)
+    """Generate synthetic patches for testing."""
+    from climatevision.data.synthetic import (
+        generate_synthetic_dataset,
+        generate_flood_test_patches,
+    )
 
     test_ratio = max(0.0, 1.0 - train_ratio - val_ratio)
     n_train = int(n_patches * train_ratio)
-    n_val   = int(n_patches * val_ratio)
-    n_test  = max(0, n_patches - n_train - n_val)
+    n_val = int(n_patches * val_ratio)
+    n_test = max(0, n_patches - n_train - n_val)
 
-    logger.info(
-        "Generating %d synthetic patches  "
-        "(train=%d / val=%d / test=%d)  patch_size=%d",
-        n_patches, n_train, n_val, n_test, patch_size,
-    )
-
-    generate_synthetic_dataset(
-        output_dir=out_dir,
-        n_train=n_train,
-        n_val=n_val,
-        n_test=n_test,
-        patch_size=patch_size,
-    )
+    if analysis_type == "flooding":
+        logger.info(
+            "Generating %d synthetic flood patches (train=%d / val=%d / test=%d)",
+            n_patches, n_train, n_val, n_test,
+        )
+        for split, n in [("train", n_train), ("val", n_val), ("test", n_test)]:
+            if n > 0:
+                split_dir = out_dir / split
+                generate_flood_test_patches(
+                    output_dir=split_dir,
+                    n=n,
+                    patch_size=patch_size,
+                    use_sar=False,
+                    seed=42 if split == "train" else 99 if split == "val" else 123,
+                )
+    else:
+        logger.info(
+            "Generating %d synthetic forest patches (train=%d / val=%d / test=%d)",
+            n_patches, n_train, n_val, n_test,
+        )
+        generate_synthetic_dataset(
+            output_dir=out_dir,
+            n_train=n_train,
+            n_val=n_val,
+            n_test=n_test,
+            patch_size=patch_size,
+        )
 
     logger.info("Dataset written to %s", out_dir)
 
@@ -82,6 +92,7 @@ def generate_synthetic(
 # ---------------------------------------------------------------------------
 
 def download_gee(
+    analysis_type: str,
     bbox: tuple[float, float, float, float],
     start: str,
     end: str,
@@ -101,8 +112,8 @@ def download_gee(
     try:
         import os
         svc_account = os.getenv("GEE_SERVICE_ACCOUNT")
-        key_file    = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
-        project     = os.getenv("GEE_PROJECT_ID")
+        key_file = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
+        project = os.getenv("GEE_PROJECT_ID")
 
         if key_file and not os.path.isabs(key_file):
             key_file = str(PROJECT_ROOT / key_file)
@@ -128,37 +139,41 @@ def download_gee(
 
     import random, urllib.request, tempfile, os
 
+    from climatevision.data.band_mapping import get_bands_for_analysis
+
+    bands = get_bands_for_analysis(analysis_type)
+    gee_bands = {
+        "B01": "B1", "B02": "B2", "B03": "B3", "B04": "B4",
+        "B05": "B5", "B06": "B6", "B07": "B7", "B08": "B8",
+        "B8A": "B8A", "B09": "B9", "B10": "B10", "B11": "B11", "B12": "B12",
+    }
+    selected_bands = [gee_bands[b] for b in bands]
+
     west, south, east, north = bbox
 
-    # GEE download size limit is 48 MB per request.
-    # At 100 m resolution, a 0.25° tile is ~278x278 px × 5 bands × 4 bytes ≈ 1.5 MB — safe.
-    # 100 m is standard for regional forest classification.
     TILE_DEG = 0.25
-    SCALE_M  = 100
+    SCALE_M = 100
 
-    # Build tile grid
     tiles = []
     lat = south
     while lat < north:
         lon = west
         while lon < east:
             tiles.append((
-                round(lon,                        6),
-                round(lat,                        6),
-                round(min(lon + TILE_DEG, east),  6),
+                round(lon, 6),
+                round(lat, 6),
+                round(min(lon + TILE_DEG, east), 6),
                 round(min(lat + TILE_DEG, north), 6),
             ))
             lon += TILE_DEG
         lat += TILE_DEG
 
-    logger.info("Downloading %d tiles (%.2f° each, scale=%dm)…", len(tiles), TILE_DEG, SCALE_M)
+    logger.info("Downloading %d tiles (%.2f deg each, scale=%dm)…", len(tiles), TILE_DEG, SCALE_M)
 
     patches: list[tuple[np.ndarray, np.ndarray]] = []
-
-    # Minimal rasterio profile for writing plain GeoTIFF patches
     base_profile = {
         "driver": "GTiff",
-        "crs":    "EPSG:4326",
+        "crs": "EPSG:4326",
         "transform": rasterio.transform.from_bounds(west, south, east, north, patch_size, patch_size),
     }
 
@@ -173,25 +188,34 @@ def download_gee(
             .filterBounds(tile_region)
             .filterDate(start, end)
             .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_threshold * 100))
-            .select(["B4", "B3", "B2", "B8"])
+            .select(selected_bands)
         )
 
-        dw = (
-            ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
-            .filterBounds(tile_region)
-            .filterDate(start, end)
-            .select("label")
-            .mode()
-        )
-        forest_mask = dw.eq(1).rename("forest")
+        # For flood detection, use JRC Global Surface Water for water mask baseline
+        if analysis_type == "flooding":
+            water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence").clip(tile_region)
+            water_mask = water.gt(50).rename("water")
+            # We can't easily generate "flooded" labels without event-specific data,
+            # so we create a 3-class mask: dry=0, permanent_water=1, flooded=2
+            # Here we set flooded=water (simplified — in production use event-specific polygons)
+            label = water_mask
+        else:
+            dw = (
+                ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
+                .filterBounds(tile_region)
+                .filterDate(start, end)
+                .select("label")
+                .mode()
+            )
+            label = dw.eq(1).rename("forest")
 
         try:
-            image    = collection.median().clip(tile_region)
-            combined = image.addBands(forest_mask)
+            image = collection.median().clip(tile_region)
+            combined = image.addBands(label)
 
             url = combined.getDownloadURL({
                 "region": tile_region,
-                "scale":  SCALE_M,
+                "scale": SCALE_M,
                 "format": "GEO_TIFF",
             })
 
@@ -199,16 +223,17 @@ def download_gee(
             urllib.request.urlretrieve(url, tmp)
 
             with rasterio.open(tmp) as src:
-                full = src.read()   # (5, H, W)
+                full = src.read()
 
             os.unlink(tmp)
 
-            if full.shape[0] < 5:
+            n_bands = len(selected_bands)
+            if full.shape[0] < n_bands + 1:
                 continue
 
-            image_data = full[:4].astype(np.float32)
-            mask_data  = (full[4] > 0).astype(np.uint8)
-            _, H, W    = image_data.shape
+            image_data = full[:n_bands].astype(np.float32)
+            mask_data = full[n_bands].astype(np.uint8)
+            _, H, W = image_data.shape
 
             for y in range(0, H - patch_size + 1, patch_size):
                 for x in range(0, W - patch_size + 1, patch_size):
@@ -216,12 +241,12 @@ def download_gee(
                         break
                     patches.append((
                         image_data[:, y:y + patch_size, x:x + patch_size],
-                        mask_data[    y:y + patch_size, x:x + patch_size],
+                        mask_data[y:y + patch_size, x:x + patch_size],
                     ))
                 if len(patches) >= max_patches:
                     break
 
-            logger.info("  tile %d/%d  →  %d patches so far", ti + 1, len(tiles), len(patches))
+            logger.info("  tile %d/%d  ->  %d patches so far", ti + 1, len(tiles), len(patches))
 
         except Exception as exc:
             logger.warning("  tile %d/%d skipped: %s", ti + 1, len(tiles), exc)
@@ -233,16 +258,15 @@ def download_gee(
 
     logger.info("Extracted %d patches total", len(patches))
 
-    # Shuffle + split
     random.seed(42)
     random.shuffle(patches)
-    n       = len(patches)
+    n = len(patches)
     n_train = int(n * train_ratio)
-    n_val   = int(n * val_ratio)
-    splits  = {
+    n_val = int(n * val_ratio)
+    splits = {
         "train": patches[:n_train],
-        "val":   patches[n_train:n_train + n_val],
-        "test":  patches[n_train + n_val:],
+        "val": patches[n_train:n_train + n_val],
+        "test": patches[n_train + n_val:],
     }
 
     for split, split_patches in splits.items():
@@ -250,7 +274,7 @@ def download_gee(
         (out_dir / split / "masks").mkdir(parents=True, exist_ok=True)
         for idx, (img_patch, mask_patch) in enumerate(split_patches):
             stem = f"patch_{idx:05d}"
-            img_profile = {**base_profile, "count": 4, "dtype": "float32",
+            img_profile = {**base_profile, "count": img_patch.shape[0], "dtype": "float32",
                            "height": patch_size, "width": patch_size}
             with rasterio.open(out_dir / split / "images" / f"{stem}.tif", "w", **img_profile) as dst:
                 dst.write(img_patch)
@@ -268,7 +292,6 @@ def download_gee(
 # ---------------------------------------------------------------------------
 
 def fit_normalizer(data_dir: Path, out_path: Path) -> None:
-    """Compute per-band mean/std on the training set and save to JSON."""
     try:
         from climatevision.data.preprocessing import Sentinel2Normalizer
     except ImportError as exc:
@@ -304,7 +327,9 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--mode", choices=["synthetic", "gee"], default="synthetic")
-    p.add_argument("--out",  type=Path, default=Path("data/processed"),
+    p.add_argument("--analysis-type", default="deforestation",
+                   help="Analysis type: deforestation, flooding, ice_melting")
+    p.add_argument("--out", type=Path, default=Path("data/processed"),
                    help="Output directory (created if needed)")
 
     # Synthetic options
@@ -318,16 +343,16 @@ def parse_args() -> argparse.Namespace:
                    help="[gee] Bounding box: west south east north")
     p.add_argument("--start", type=str, default="2022-01-01",
                    help="[gee] Start date YYYY-MM-DD")
-    p.add_argument("--end",   type=str, default="2023-12-31",
+    p.add_argument("--end", type=str, default="2023-12-31",
                    help="[gee] End date YYYY-MM-DD")
     p.add_argument("--max-patches", type=int, default=5000,
                    help="[gee] Maximum patches to extract from download")
     p.add_argument("--cloud-threshold", type=float, default=0.2,
-                   help="[gee] Max cloud fraction (0–1)")
+                   help="[gee] Max cloud fraction (0-1)")
 
     # Split ratios
     p.add_argument("--train-ratio", type=float, default=0.70)
-    p.add_argument("--val-ratio",   type=float, default=0.15)
+    p.add_argument("--val-ratio", type=float, default=0.15)
 
     # Normalizer
     p.add_argument("--fit-normalizer", action="store_true",
@@ -342,11 +367,12 @@ def main() -> None:
     args = parse_args()
 
     if args.train_ratio + args.val_ratio > 1.0:
-        logger.error("--train-ratio + --val-ratio must be ≤ 1.0")
+        logger.error("--train-ratio + --val-ratio must be <= 1.0")
         sys.exit(1)
 
     if args.mode == "synthetic":
         generate_synthetic(
+            analysis_type=args.analysis_type,
             n_patches=args.n_patches,
             out_dir=args.out,
             patch_size=args.patch_size,
@@ -358,7 +384,8 @@ def main() -> None:
             logger.error("--bbox W S E N is required for --mode gee")
             sys.exit(1)
         download_gee(
-            bbox=tuple(args.bbox),          # type: ignore[arg-type]
+            analysis_type=args.analysis_type,
+            bbox=tuple(args.bbox),
             start=args.start,
             end=args.end,
             out_dir=args.out,
