@@ -147,3 +147,24 @@ If you use ClimateVision in your research, please cite:
   &nbsp;·&nbsp;
   <a href="https://github.com/Climate-Vision/ClimateVision/issues">Report a Bug</a>
 </p>
+
+---
+
+## Contributors
+
+Thanks to everyone who has contributed to ClimateVision! 🎉
+
+| Contributor | Merged PRs |
+|-------------|-----------|
+| [@Goldokpa](https://github.com/Goldokpa) | #1, #2, #3, #4, #5, #6, #16, #29, #30 |
+| [@Oshgig](https://github.com/Oshgig) | #7, #8, #33 |
+| [@femi23](https://github.com/femi23) | #34, #40, #41, #42 |
+| [@obielin](https://github.com/obielin) | #35, #36, #37, #38, #39 |
+| [@franchaise](https://github.com/franchaise) | #46, #47, #48, #49 |
+| [@Hopelynconsult](https://github.com/Hopelynconsult) | #51 |
+| [@emekambachu](https://github.com/emekambachu) | Co-author contributions |
+| [@Godswill-code](https://github.com/Godswill-code) | Co-author contributions |
+| [@cutewizzy11](https://github.com/cutewizzy11) | Co-author contributions |
+| [@edoh-Onuh](https://github.com/edoh-Onuh) | Co-author contributions |
+
+Want to join this list? Check out our [Contributing Guide](CONTRIBUTING.md) and pick up a [`good first issue`](https://github.com/Climate-Vision/ClimateVision/issues?q=label%3A%22good+first+issue%22)!
