@@ -154,6 +154,10 @@ If you use ClimateVision in your research, please cite:
 
 Thanks to everyone who has contributed to ClimateVision! 🎉
 
+<a href="https://github.com/Climate-Vision/ClimateVision/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Climate-Vision/ClimateVision" />
+</a>a>
+
 | Contributor | Merged PRs |
 |-------------|-----------|
 | [@Goldokpa](https://github.com/Goldokpa) | #1, #2, #3, #4, #5, #6, #16, #29, #30 |
