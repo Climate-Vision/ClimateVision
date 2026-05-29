@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use ClimateVision in your research, please cite it using this file."
+type: software
+title: "ClimateVision: Open-Source AI Platform for Environmental Monitoring"
+version: "0.2.0"
+date-released: "2026-03-04"
+url: "https://github.com/Climate-Vision/ClimateVision"
+repository-code: "https://github.com/Climate-Vision/ClimateVision"
+license: MIT
+abstract: >
+  ClimateVision is an open-source machine learning platform that detects
+  environmental change from satellite imagery. It uses deep learning
+  (U-Net, Siamese networks) to monitor deforestation, arctic ice melting,
+  and flooding, giving conservation NGOs and researchers automated alerts
+  without manual analysis. Built on Sentinel-2 and Landsat data via
+  Google Earth Engine, it runs as a REST API with a React dashboard.
+keywords:
+  - climate
+  - machine-learning
+  - satellite-imagery
+  - deep-learning
+  - remote-sensing
+  - deforestation
+  - google-earth-engine
+  - fastapi
+  - u-net
+authors:
+  - name: "ClimateVision Contributors"
+    website: "https://github.com/Climate-Vision"
