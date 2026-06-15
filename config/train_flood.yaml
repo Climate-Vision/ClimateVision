@@ -1,0 +1,59 @@
+# ============================================================
+# ClimateVision — Flood Detection Training Config
+# ============================================================
+
+# --- Data --------------------------------------------------
+data:
+  dir: data/processed/flood
+  image_size: 256
+  batch_size: 8
+  num_workers: 4
+  use_weighted_sampler: true
+  pin_memory: true
+
+# --- Model -------------------------------------------------
+model:
+  architecture: flood_unet_s2only
+  in_channels: 3
+  num_classes: 3
+  encoder: efficientnet-b7
+
+# --- Loss --------------------------------------------------
+loss:
+  type: combined
+  focal_weight: 0.5
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  use_class_weights: true
+
+# --- Optimiser --------------------------------------------
+optimizer:
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  min_lr: 1.0e-6
+
+# --- Schedule ---------------------------------------------
+schedule:
+  epochs: 20
+  warmup_epochs: 3
+  checkpoint_interval: 5
+
+# --- Regularisation / Tricks ------------------------------
+training:
+  mixed_precision: true
+  grad_clip: 1.0
+  use_ema: true
+  ema_decay: 0.99
+  early_stopping_patience: 10
+
+# --- Outputs ----------------------------------------------
+output:
+  save_dir: models
+  run_name: ""
+
+# --- Normalisation stats ----------------------------------
+normalizer_stats: ""
+
+# --- Analysis type ----------------------------------------
+analysis:
+  type: flooding
