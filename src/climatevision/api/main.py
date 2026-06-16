@@ -44,6 +44,7 @@ from climatevision.db import (
     mark_alert_delivered,
 )
 from climatevision.inference import run_inference_from_file, run_inference_from_gee
+from climatevision.inference.flood_pipeline import run_flood_inference_from_gee
 from climatevision.api.auth import require_api_key
 from climatevision.governance import explain_prediction, SHAPExplainer
 from climatevision.security.api_security import SecurityMiddleware
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 # ===== Type Definitions =====
 
-AnalysisType = Literal["deforestation", "ice_melting", "flooding", "drought", "wildfire"]
+AnalysisType = Literal["deforestation", "ice_melting", "flooding", "flooding_sar", "drought", "wildfire"]
 OrganizationType = Literal["ngo", "government", "research", "corporate"]
 NotificationChannel = Literal["email", "webhook", "api", "sms"]
 AlertSeverity = Literal["low", "medium", "high", "critical"]
@@ -82,6 +83,14 @@ SUPPORTED_ANALYSIS_TYPES: list[dict[str, Any]] = [
         "enabled": True,
         "bands": ["B03", "B08", "B11"],
         "classes": ["water", "flooded", "dry_land"],
+    },
+    {
+        "name": "flooding_sar",
+        "display_name": "Flood Detection (SAR)",
+        "description": "All-weather flood detection from Sentinel-1 VV/VH using a physics-based ensemble",
+        "enabled": True,
+        "bands": ["VV", "VH"],
+        "classes": ["dry_land", "permanent_water", "flooded"],
     },
     {
         "name": "drought",
@@ -667,14 +676,22 @@ def create_app() -> FastAPI:
             )
             run_id = int(cur.lastrowid)
 
-        # Run inference
+        # Run inference. SAR flood detection has its own Sentinel-1 + JRC pipeline;
+        # all other analysis types use the shared Sentinel-2 inference path.
         try:
-            result_payload = run_inference_from_gee(
-                bbox=body.bbox,
-                start_date=body.start_date,
-                end_date=body.end_date,
-                analysis_type=body.analysis_type,
-            )
+            if body.analysis_type == "flooding_sar":
+                result_payload = run_flood_inference_from_gee(
+                    bbox=body.bbox,
+                    start_date=body.start_date,
+                    end_date=body.end_date,
+                )
+            else:
+                result_payload = run_inference_from_gee(
+                    bbox=body.bbox,
+                    start_date=body.start_date,
+                    end_date=body.end_date,
+                    analysis_type=body.analysis_type,
+                )
             result_payload["analysis_type"] = body.analysis_type
             status = "completed"
         except Exception as exc:

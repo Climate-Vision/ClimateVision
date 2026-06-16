@@ -18,6 +18,11 @@ from typing import Optional
 
 import numpy as np
 
+from climatevision.analysis.flood_classification import (
+    classify_with_change,
+    classify_with_reference,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -179,21 +184,31 @@ class EnsembleFloodPipeline:
         self,
         post_vh: np.ndarray,
         pre_vh: Optional[np.ndarray] = None,
+        permanent_water_ref: Optional[np.ndarray] = None,
     ) -> dict[str, np.ndarray]:
         """
         Run all three detectors and return ensemble result.
 
         Args:
             post_vh: Post-event VH backscatter in dB, shape (H, W).
-            pre_vh: Optional pre-event VH for change detection.
+            pre_vh: Optional pre-event VH. Enables the LIST change detector and,
+                if no `permanent_water_ref` is given, lets the pipeline separate
+                flood from permanent water by pre/post change.
+            permanent_water_ref: Optional (H, W) binary mask of normally-present
+                water (e.g. from JRC Global Surface Water occurrence). When given,
+                it is the authority for the permanent/flood split.
 
         Returns:
             Dict with keys:
                 - list_mask: LIST detector result
                 - dlr_mask: DLR detector result
                 - tuw_mask: TUW detector result
-                - ensemble_mask: Majority vote result
+                - ensemble_mask: Binary water majority-vote result (1 = water)
                 - agreement: Number of algorithms agreeing per pixel (0-3)
+                - classified_mask: 3-class map (0=dry, 1=permanent_water,
+                  2=flooded) if a reference or pre-event scene was supplied,
+                  else None. It is deliberately None when neither is available --
+                  the permanent/flood split cannot be inferred from one scene.
         """
         list_mask = (
             self.list_det.detect(pre_vh, post_vh)
@@ -215,10 +230,48 @@ class EnsembleFloodPipeline:
             int((votes == 3).sum()),
         )
 
+        classified_mask = self._classify_permanent_vs_flood(
+            ensemble_mask, post_vh, pre_vh, permanent_water_ref
+        )
+
         return {
             "list_mask": list_mask,
             "dlr_mask": dlr_mask,
             "tuw_mask": tuw_mask,
             "ensemble_mask": ensemble_mask,
             "agreement": votes,
+            "classified_mask": classified_mask,
         }
+
+    def _classify_permanent_vs_flood(
+        self,
+        ensemble_mask: np.ndarray,
+        post_vh: np.ndarray,
+        pre_vh: Optional[np.ndarray],
+        permanent_water_ref: Optional[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        """Split the binary water mask into permanent vs flood, if possible.
+
+        Priority: an explicit permanent-water reference wins; otherwise fall back
+        to pre/post change detection. With neither, returns None instead of
+        guessing.
+        """
+        if permanent_water_ref is not None:
+            return classify_with_reference(ensemble_mask, permanent_water_ref)
+
+        if pre_vh is not None:
+            # Derive a pre-event water mask the same way (DLR + TUW agreement).
+            pre_water = (
+                (self.dlr_det.detect(pre_vh).astype(np.uint8)
+                 + self.tuw_det.detect(pre_vh).astype(np.uint8)) >= 2
+            ).astype(np.uint8)
+            # classify_with_change keys off post-water presence, so the result is
+            # confined to where the ensemble sees water now.
+            return classify_with_change(pre_water, ensemble_mask)
+
+        logger.warning(
+            "No permanent-water reference or pre-event scene supplied; cannot "
+            "separate flood from permanent water. Returning binary water only "
+            "(classified_mask=None)."
+        )
+        return None
