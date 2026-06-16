@@ -210,7 +210,7 @@ def validate_payload_size(
 
 def validate_bbox(
     bbox: list[float],
-    max_area: float = 100.0,
+    max_area: float = 200.0,
 ) -> tuple[bool, str]:
     """
     Validate bounding box coordinates.
