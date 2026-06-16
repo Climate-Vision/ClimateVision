@@ -75,6 +75,27 @@ analysis_types:
       - "flooded_area_km2"
       - "mndwi_stats"
 
+  # Flood Detection (SAR / Sentinel-1) -- all-weather, ensemble-based, no trained
+  # weights required. Separates permanent water from flood given a JRC GSW
+  # reference or a pre-event scene.
+  flooding_sar:
+    enabled: true
+    display_name: "Flood Detection (SAR)"
+    description: "All-weather flood detection from Sentinel-1 VV/VH using a physics-based ensemble"
+    model:
+      architecture: "ensemble"   # LIST + DLR + TUW majority vote; no neural weights
+      in_channels: 2             # VV, VH
+      num_classes: 3
+    bands: ["VV", "VH"]
+    classes: ["dry_land", "permanent_water", "flooded"]
+    thresholds:
+      alert_flood_area: 5.0
+      critical_flood_area: 20.0
+    metrics:
+      - "flooded_percentage"
+      - "flooded_area_km2"
+      - "permanent_water_km2"
+
   # Drought Monitoring
   drought:
     enabled: false  # Not yet implemented
