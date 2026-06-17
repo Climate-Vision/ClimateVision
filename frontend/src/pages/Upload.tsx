@@ -8,6 +8,7 @@ import { MapBBoxPicker } from '../components/Map/MapBBoxPicker'
 import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { useToast } from '../contexts/ToastContext'
 import { useApp } from '../contexts/AppContext'
+import { ApiError } from '../components/ui/ApiError'
 
 const ACCEPTED = ['.tif', '.tiff', '.geotiff', '.nc', '.hdf5']
 const MAX_MB = 500
@@ -31,6 +32,7 @@ export default function Upload() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -57,6 +59,7 @@ export default function Upload() {
   const handleUpload = async () => {
     if (!file) return
     setBusy(true)
+    setError(null);
     setUploadProgress(0)
 
     try {
@@ -75,9 +78,14 @@ export default function Upload() {
       })
       setFile(null)
       setUploadProgress(null)
-    } catch (e) {
-      showToast('error', String(e))
-      setUploadProgress(null)
+    } catch (e:any) {
+     const message =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Upload failed'
+      setError(message);
+      setUploadProgress(null);
     } finally {
       setBusy(false)
     }
@@ -85,7 +93,7 @@ export default function Upload() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-
+        <ApiError message={error} onDismiss={() => setError(null)} />
       {/* Drop Zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
