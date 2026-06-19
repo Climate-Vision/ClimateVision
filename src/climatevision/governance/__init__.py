@@ -6,6 +6,7 @@ Provides responsible AI capabilities:
 - Regional bias and fairness auditing
 - Calibration metrics for confidence reliability
 - Anomaly detection for inference inputs/outputs
+- Distributional drift detection (PSI, KS) over prediction windows
 - Model audit trails and version tracking
 """
 
@@ -53,6 +54,14 @@ from .calibration import (
     reliability_bins,
     write_calibration_report,
 )
+from .drift_detector import (
+    DriftReport,
+    DriftResult,
+    detect_drift,
+    kolmogorov_smirnov,
+    population_stability_index,
+    write_drift_report,
+)
 
 __all__ = [
     # Explainability
@@ -93,4 +102,11 @@ __all__ = [
     "maximum_calibration_error",
     "reliability_bins",
     "write_calibration_report",
+    # Drift detection
+    "DriftReport",
+    "DriftResult",
+    "detect_drift",
+    "kolmogorov_smirnov",
+    "population_stability_index",
+    "write_drift_report",
 ]
