@@ -12,7 +12,7 @@ import hmac
 import logging
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException, Request, Security
@@ -78,28 +78,37 @@ class APIKeyAuth:
         if not api_key or not api_key.startswith("cv_"):
             return None
 
-        # Development bypass — only when explicitly enabled. Off by default so
-        # production is secure even if CLIMATEVISION_ALLOW_DEV_KEY is unset.
+        # Development bypass — DISABLED by default. Enable for local dev only by
+        # setting CLIMATEVISION_ALLOW_DEV_KEY=1. Never enable in production.
         if api_key == "cv_dev":
-            if os.environ.get("CLIMATEVISION_ALLOW_DEV_KEY", "0") == "1":
-                return {
-                    "id": 0,
-                    "name": "Development",
-                    "demo": True,
-                }
-            logger.warning("cv_dev key rejected: dev bypass disabled in this environment.")
+            if os.getenv("CLIMATEVISION_ALLOW_DEV_KEY", "").lower() in ("1", "true", "yes"):
+                return {"id": 0, "name": "Development", "demo": True}
+            logger.warning("cv_dev rejected: CLIMATEVISION_ALLOW_DEV_KEY not set")
             return None
 
-        # Check cache first
+        # Short-lived cache to avoid a DB hit on every request.
         key_hash = self.hash_key(api_key)
-        if key_hash in self._key_cache:
-            cached = self._key_cache[key_hash]
-            if cached.get("expires_at", datetime.max) > datetime.utcnow():
-                return cached.get("org")
+        cached = self._key_cache.get(key_hash)
+        if cached and cached.get("expires_at", datetime.max) > datetime.utcnow():
+            return cached.get("org")
 
-        # Would query database in production
-        # For now, return None to indicate key not found
-        return None
+        # Validate against the organizations table (active keys only).
+        try:
+            from climatevision.db import get_organization_by_api_key
+            row = get_organization_by_api_key(api_key)
+        except Exception as exc:
+            logger.warning("api_key_db_lookup_failed: %s", exc)
+            return None
+
+        if row is None:
+            return None
+
+        org = dict(row)
+        self._key_cache[key_hash] = {
+            "org": org,
+            "expires_at": datetime.utcnow() + timedelta(minutes=5),
+        }
+        return org
 
     def revoke_key(self, api_key: str) -> bool:
         """
