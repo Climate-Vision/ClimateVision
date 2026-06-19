@@ -53,13 +53,61 @@ def run_flood_inference_from_gee(
 
     payload = result.to_dict()
     payload["analysis_type"] = analysis_type
-    payload["is_synthetic"] = bool(sar_meta.get("is_synthetic", False))
+    is_synthetic = bool(sar_meta.get("is_synthetic", False))
+    payload["is_synthetic"] = is_synthetic
+
+    # Downstream road-impact assessment (NGO/gov actionability).
+    road_impact = _road_impact(result.mask, bbox) if result.mask is not None and bbox else {
+        "affected_road_km": None, "road_impact_available": False, "reason": "no_mask_or_bbox",
+    }
+    if road_impact.get("affected_road_km") is not None:
+        payload.setdefault("inference", {})["affected_road_km"] = road_impact["affected_road_km"]
+
+    distinguished = bool(payload.get("inference", {}).get("permanent_flood_distinguished", False))
     payload["metadata"] = {
         "sar": sar_meta,
         "permanent_water_reference": permanent_ref is not None,
         "occurrence_threshold_pct": occurrence_threshold_pct,
+        "road_impact": road_impact,
+    }
+    # Provenance/QA block: what a decision-maker needs to judge trust at a glance.
+    payload["quality"] = {
+        "is_synthetic": is_synthetic,
+        "permanent_flood_distinguished": distinguished,
+        "permanent_water_reference_source": "jrc_gsw_occurrence" if permanent_ref is not None else "none",
+        "road_impact_available": bool(road_impact.get("road_impact_available")),
+        "validated_against_benchmark": False,  # set true only after a real eval run
+        "notes": _quality_notes(is_synthetic, distinguished, permanent_ref is not None),
     }
     return payload
+
+
+def _quality_notes(is_synthetic: bool, distinguished: bool, has_ref: bool) -> list[str]:
+    notes: list[str] = []
+    if is_synthetic:
+        notes.append("Result is from a SYNTHETIC fallback scene (GEE unavailable) -- not a real observation.")
+    if not distinguished:
+        notes.append("No permanent-water reference or pre-event scene: detected water reported as flooded; "
+                     "permanent vs flood NOT separated.")
+    elif has_ref:
+        notes.append("Flood/permanent split derived from JRC Global Surface Water occurrence.")
+    notes.append("Detector accuracy not yet validated against a labeled benchmark (run scripts/eval_flood.py).")
+    return notes
+
+
+def _road_impact(flood_mask: np.ndarray, bbox: list[float]) -> dict[str, Any]:
+    """Affected road length via OSM, degrading honestly when osmnx is absent."""
+    try:
+        import osmnx  # noqa: F401
+    except ImportError:
+        return {"affected_road_km": None, "road_impact_available": False, "reason": "osmnx_not_installed"}
+    try:
+        from climatevision.impact.osm_roads import assess_flood_impact
+        out = assess_flood_impact(flood_mask, bbox)
+        return {"affected_road_km": out.get("affected_road_km", 0.0), "road_impact_available": True}
+    except Exception as exc:  # network/OSM failure
+        logger.warning("Road-impact assessment failed: %s", exc)
+        return {"affected_road_km": None, "road_impact_available": False, "reason": str(exc)}
 
 
 def _load_permanent_reference(
