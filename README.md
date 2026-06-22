@@ -156,7 +156,7 @@ Thanks to everyone who has contributed to ClimateVision! 🎉
 
 <a href="https://github.com/Climate-Vision/ClimateVision/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Climate-Vision/ClimateVision" />
-</a>a>
+</a>
 
 | Contributor | Merged PRs |
 |-------------|-----------|
@@ -165,7 +165,6 @@ Thanks to everyone who has contributed to ClimateVision! 🎉
 | [@femi23](https://github.com/femi23) | #34, #40, #41, #42 |
 | [@obielin](https://github.com/obielin) | #35, #36, #37, #38, #39 |
 | [@franchaise](https://github.com/franchaise) | #46, #47, #48, #49 |
-| [@Hopelynconsult](https://github.com/Hopelynconsult) | #51 |
 | [@emekambachu](https://github.com/emekambachu) | Co-author contributions |
 | [@Godswill-code](https://github.com/Godswill-code) | Co-author contributions |
 | [@cutewizzy11](https://github.com/cutewizzy11) | Co-author contributions |

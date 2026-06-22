@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot configuration for pip, npm, and GitHub Actions updates
 - CHANGELOG.md (this file)
 - CITATION.cff for GitHub "Cite this repository" button
+- `team_docs/ROLE_REASSIGNMENT.md` documenting departure of @Hopelynconsult and redistribution of Responsible AI responsibilities to @Goldokpa and @obielin
+
+### Removed
+- `team_docs/Hopelyn_Role_INTERNAL.md` (internal credentials file for departed team member); associated PAT must be revoked
 
 ### Changed
 - CODE_OF_CONDUCT.md — replaced placeholder email with GitHub private reporting link
