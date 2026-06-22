@@ -6,6 +6,12 @@ from pathlib import Path
 from typing import Dict, Any
 import yaml
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 class Config:
     """Base configuration class"""

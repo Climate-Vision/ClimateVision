@@ -19,8 +19,11 @@ import torch
 
 from climatevision.data.band_mapping import get_bands_for_analysis, get_model_config
 from climatevision.models.unet import UNet
+from climatevision.security.pipeline_guard import PipelineGuard
 
 logger = logging.getLogger(__name__)
+
+_guard = PipelineGuard(enable_input_check=True, enable_output_check=True)
 
 # ---------------------------------------------------------------------------
 # Project paths (mirrors run_training.py conventions, NOT Config.MODELS_DIR)
@@ -217,6 +220,15 @@ def run_inference(
 
     ndvi_stats = _compute_ndvi_stats(image)
 
+    input_check = _guard.check_input(image)
+    if input_check.is_anomalous:
+        logger.warning(
+            "Anomalous input detected for %s (score=%.4f, type=%s)",
+            analysis_type,
+            input_check.anomaly_score,
+            input_check.anomaly_type,
+        )
+
     model, device = _load_model(analysis_type)
     n_channels = model.n_channels
     n_classes = model.n_classes
@@ -238,6 +250,19 @@ def run_inference(
         output = model(tensor)
         predictions = torch.argmax(output, dim=1)  # (1, H, W)
         probabilities = torch.softmax(output, dim=1)  # (1, n_classes, H, W)
+
+    output_check = _guard.check_output(
+        predictions.cpu().numpy(),
+        probabilities=probabilities.cpu().numpy(),
+        n_classes=n_classes,
+    )
+    if not output_check.is_valid:
+        logger.warning(
+            "Model output validation failed for %s (confidence=%.4f, issues=%s)",
+            analysis_type,
+            output_check.confidence,
+            output_check.issues,
+        )
 
     total_pixels = int(predictions.numel())
     max_probs = probabilities.max(dim=1).values
