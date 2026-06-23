@@ -7,6 +7,7 @@ Manages SQLite database for storing:
 - Alerts and notifications
 """
 
+import os
 import secrets
 import sqlite3
 from pathlib import Path
@@ -23,9 +24,18 @@ def get_db_path() -> Path:
     """Get the path to the SQLite database file."""
     global _DB_PATH
     if _DB_PATH is None:
-        db_dir = Config.PROJECT_ROOT / "outputs"
-        db_dir.mkdir(parents=True, exist_ok=True)
-        _DB_PATH = db_dir / "climatevision.sqlite3"
+        db_url = os.environ.get("DATABASE_URL", "")
+        if db_url.startswith("sqlite:///"):
+            # Support both absolute paths (sqlite:////...) and project-relative paths
+            path_part = db_url[len("sqlite:///"):]
+            if path_part.startswith("/"):
+                _DB_PATH = Path(path_part)
+            else:
+                _DB_PATH = Config.PROJECT_ROOT / path_part
+        else:
+            db_dir = Config.PROJECT_ROOT / "outputs"
+            db_dir.mkdir(parents=True, exist_ok=True)
+            _DB_PATH = db_dir / "climatevision.sqlite3"
     return _DB_PATH
 
 

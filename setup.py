@@ -14,12 +14,12 @@ else:
 
 setup(
     name="climatevision",
-    version="0.1.0",
+    version="0.2.0",
     author="ClimateVision Contributors",
-    description="Open-source ML platform for automated deforestation detection using deep learning and satellite imagery",
+    description="Open-source ML platform for automated environmental monitoring using deep learning and satellite imagery",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/ClimateVision",
+    url="https://github.com/Climate-Vision/ClimateVision",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
@@ -36,7 +36,7 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "numpy>=1.21.0",
+        "numpy>=1.21.0,<2.0.0",
         "pandas>=1.3.0",
         "torch>=2.0.0",
         "torchvision>=0.15.0",
@@ -50,6 +50,7 @@ setup(
         "tqdm>=4.62.0",
         "pyyaml>=6.0",
         "requests>=2.26.0",
+        "python-dotenv>=0.19.0",
     ],
     extras_require={
         "dev": [

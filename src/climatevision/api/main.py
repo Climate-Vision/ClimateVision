@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,7 @@ from climatevision.db import (
 from climatevision.inference import run_inference_from_file, run_inference_from_gee
 from climatevision.api.auth import require_api_key
 from climatevision.governance import explain_prediction, SHAPExplainer
+from climatevision.security.api_security import SecurityMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -388,18 +390,29 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(AuditLogMiddleware)
+
+    # CORS: allow local dev origins plus any origins from CLIMATEVISION_CORS_ORIGINS
+    default_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    extra_origins = [
+        origin.strip()
+        for origin in os.environ.get("CLIMATEVISION_CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-        ],
+        allow_origins=list(dict.fromkeys(default_origins + extra_origins)),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Wire OWASP-aligned security controls (rate limiting, payload limits, etc.)
+    app.add_middleware(SecurityMiddleware)
 
     from climatevision.api import admin as _admin
     app.include_router(_admin.router)
@@ -456,6 +469,37 @@ def create_app() -> FastAPI:
             "analysis_types": [t["name"] for t in enabled_types],
             "config_valid": len(config_issues) == 0,
             "config_issues": config_issues,
+        }
+
+    @app.get("/api/health/models")
+    def health_models() -> dict[str, Any]:
+        """Report which analysis types have trained weights available on disk."""
+        from climatevision.data.band_mapping import get_model_config
+
+        models_status = []
+        for atype in SUPPORTED_ANALYSIS_TYPES:
+            name = atype["name"]
+            cfg = get_model_config(name)
+            weights_path = cfg.get("weights")
+            has_weights = False
+            if weights_path:
+                has_weights = (Path(__file__).resolve().parents[3] / weights_path).exists()
+            models_status.append(
+                {
+                    "analysis_type": name,
+                    "enabled": atype["enabled"],
+                    "has_trained_weights": has_weights,
+                    "weights_path": weights_path,
+                    "note": "production inference" if has_weights else "synthetic/demo fallback",
+                }
+            )
+
+        ready_count = sum(1 for m in models_status if m["has_trained_weights"])
+        return {
+            "status": "ready" if ready_count else "demo_mode",
+            "models": models_status,
+            "ready_count": ready_count,
+            "total_count": len(models_status),
         }
 
     @app.get("/api/analysis-types")
