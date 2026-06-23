@@ -32,7 +32,7 @@ class SecurityConfig:
     """Security configuration settings."""
 
     max_payload_size_bytes: int = 50 * 1024 * 1024  # 50 MB
-    max_bbox_area_degrees: float = 100.0  # Max area in square degrees
+    max_bbox_area_degrees: float = 200.0  # Max area in square degrees
     max_date_range_days: int = 365  # Max date range
     rate_limit_requests: int = 100  # Requests per window
     rate_limit_window_seconds: int = 60  # Window size
@@ -210,7 +210,7 @@ def validate_payload_size(
 
 def validate_bbox(
     bbox: list[float],
-    max_area: float = 100.0,
+    max_area: float = 200.0,
 ) -> tuple[bool, str]:
     """
     Validate bounding box coordinates.

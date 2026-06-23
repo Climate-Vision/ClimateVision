@@ -1,0 +1,52 @@
+# Git / version control
+.git
+.gitignore
+
+# Python
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# Node
+frontend/node_modules
+frontend/dist
+frontend/.env
+npm-debug.log*
+
+# Local data and outputs (mounted at runtime)
+data
+outputs
+logs
+models_pretrained
+
+# Secrets
+secrets
+.env
+.env.*
+
+# IDE / OS
+.claude
+.cursor
+.vscode
+.DS_Store
+
+# Docs / tests that are not needed at runtime
+team_docs
+*.pdf
+tests
+notebooks
+scripts/*.sh
+scripts/setup_gee.py
+
+# Large pretrained weights if they exist locally
+# (The production ONNX is copied explicitly in the Dockerfile if present)
+models/**/*.pth
+models/**/*.pt
+models/**/best_model.pth
