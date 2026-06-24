@@ -42,7 +42,7 @@ team_docs
 *.pdf
 tests
 notebooks
-scripts/*.sh
+scripts/setup_*.sh
 scripts/setup_gee.py
 
 # Large pretrained weights if they exist locally
