@@ -1,15 +1,18 @@
 # ClimateVision Deployment Guide
 
-This guide covers deploying ClimateVision to **Fly.io** at `https://climatevision.green` with real Google Earth Engine (GEE) satellite data.
+This guide covers deploying ClimateVision at `https://climatevision.green` with real Google Earth Engine (GEE) satellite data.
+
+The primary path uses **Render.com** because it offers a reliable free tier and does not require a paid account to launch. A **Fly.io** path is also documented for users with active billing.
 
 ---
 
 ## Prerequisites
 
-- A Fly.io account: https://fly.io
-- The Fly CLI (`flyctl`) installed and authenticated
 - A Google Cloud project with Earth Engine enabled
 - This repository cloned and dependencies installed
+- One of the following platforms:
+  - **Render.com** account: https://render.com
+  - **Fly.io** account with active billing: https://fly.io
 
 ---
 
@@ -48,58 +51,77 @@ The API will be available at http://localhost:8000 and the dashboard at http://l
 
 ---
 
-## 3. Fly.io setup
+## 3. Deploy to Render.com (recommended, free tier)
 
-### 3.1 Create the app and provision secrets
+### 3.1 Install the Render CLI
+
+https://render.com/docs/cli
+
+### 3.2 Create secrets locally
+
+Make sure `.env` and `secrets/gee-key.json` are populated as described in section 1.
+
+### 3.3 Push secrets to Render
+
+```bash
+./scripts/setup_render_secrets.sh
+```
+
+This uploads:
+- `GEE_SERVICE_ACCOUNT`
+- `GEE_PROJECT_ID`
+- `GEE_SERVICE_ACCOUNT_KEY_JSON` (the contents of your JSON key)
+- `API_SECRET_KEY`
+- `CLIMATEVISION_ALLOW_DEV_KEY`
+- `CLIMATEVISION_CORS_ORIGINS`
+- `DATABASE_URL`
+
+### 3.4 Deploy via Blueprint
+
+1. Push `render.yaml` to your default branch (`main`).
+2. In the Render dashboard, go to **Blueprints**.
+3. Connect your GitHub repository.
+4. Render will read `render.yaml` and create the `climatevision-green` web service.
+
+### 3.5 Custom domain
+
+1. In the Render dashboard, open the `climatevision-green` service.
+2. Go to **Settings → Custom Domains**.
+3. Add `climatevision.green` and `www.climatevision.green`.
+4. Render will give you DNS records to add in Namecheap.
+5. In Namecheap, add the provided CNAME or A records.
+
+### 3.6 Limitations of the free tier
+
+- The service spins down after 15 minutes of inactivity. The first request after spin-down will have a ~30-second cold start.
+- SQLite data lives on ephemeral disk. It will survive restarts but not full redeploys. For production persistence, switch to a managed PostgreSQL database.
+- Memory is limited; large model inference may be slow.
+
+---
+
+## 4. Deploy to Fly.io (requires active billing)
+
+Use this path only if your Fly.io account has an up-to-date payment method.
 
 ```bash
 # Create the Fly app
 fly apps create climatevision-green
 
-# Set all secrets from .env
+# Create a persistent volume for SQLite
+fly volumes create climatevision_data --region lhr --size 1
+
+# Upload secrets
 ./scripts/setup_fly_secrets.sh
 
-# Create a persistent volume for SQLite and outputs (1 GB is plenty for demos)
-fly volumes create climatevision_data --region lhr --size 1
-```
-
-### 3.2 Custom domain
-
-```bash
-# Request a certificate for your domain
+# Set up SSL
 fly certs create climatevision.green
+
+# Add DNS records in Namecheap using the output of:
+fly certs show climatevision.green
+
+# Add FLY_API_TOKEN to GitHub Actions secrets, then deploy:
+git push origin main
 ```
-
-Add the DNS records shown by `fly certs show` to your DNS provider. Once propagated, Fly will serve the app at `https://climatevision.green`.
-
-### 3.3 Deploy
-
-```bash
-# Manual deploy
-fly deploy --remote-only
-
-# Or push to main — GitHub Actions will deploy automatically
-# once FLY_API_TOKEN is configured (see section 4).
-```
-
----
-
-## 4. GitHub Actions CI/CD
-
-The repository includes two workflows:
-
-- `.github/workflows/ci.yml` — runs on every PR/push to `main` or `develop`.
-- `.github/workflows/deploy.yml` — deploys to Fly.io on every push to `main`.
-
-### Required repository secrets
-
-Add these in **GitHub → Settings → Secrets and variables → Actions**:
-
-| Secret | Value |
-|--------|-------|
-| `FLY_API_TOKEN` | A Fly.io access token from https://fly.io/user/personal_access_tokens |
-
-GEE credentials are **not** stored in GitHub; they are set directly on Fly via `scripts/setup_fly_secrets.sh`.
 
 ---
 
@@ -145,7 +167,7 @@ The alert generator emits notifications to pluggable channels. By default only t
 
 To enable email or webhook alerts, register a delivery function in `src/climatevision/inference/alert_generator.py` or implement the alert worker (see open issue #10).
 
-For email, configure an SMTP provider or a transactional email service such as Mailgun or SendGrid, then set the relevant secrets via `fly secrets set`.
+For email, configure an SMTP provider or a transactional email service such as Mailgun or SendGrid, then set the relevant secrets via your platform’s secret manager.
 
 ---
 
@@ -153,17 +175,6 @@ For email, configure an SMTP provider or a transactional email service such as M
 
 - [ ] `CLIMATEVISION_ALLOW_DEV_KEY` is `0` in production.
 - [ ] `API_SECRET_KEY` is a strong, unique secret.
-- [ ] The GEE service-account key is stored only in `secrets/` or Fly secrets, never in Git.
-- [ ] Hopelyn’s old PAT has been revoked in GitHub.
-- [ ] The Fly app uses HTTPS via `fly certs`.
-
----
-
-## 9. Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| `GEE tile download failed` | Missing or invalid GEE credentials | Check `.env` / Fly secrets and service-account registration |
-| Frontend shows blank page | `frontend/dist` not built or mounted | Re-run `npm run build` in `frontend/` or redeploy |
-| CORS errors | Origin not allowed | Add domain to `CLIMATEVISION_CORS_ORIGINS` |
-| SQLite data lost on deploy | No Fly volume mounted | Create and mount `climatevision_data` volume on `/app/outputs` |
+- [ ] The GEE service-account key is stored only in `secrets/` or your platform’s secret store, never in Git.
+- [ ] Old or exposed service-account keys have been deleted in Google Cloud Console.
+- [ ] The production domain serves HTTPS.
