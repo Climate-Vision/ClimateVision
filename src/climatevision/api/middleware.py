@@ -10,12 +10,62 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from contextvars import ContextVar
 from typing import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
+
+
+# Context variable that carries the X-Request-ID through the entire request
+# lifecycle, including non-FastAPI code (inference pipeline, helper modules)
+# that does not have access to the FastAPI `Request` object.
+request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """
+    Propagate ``X-Request-ID`` through the request lifecycle.
+
+    Reads the inbound ``X-Request-ID`` header (or generates a fresh UUID4 if
+    absent), stores it on a :class:`~contextvars.ContextVar` so any code that
+    runs during the request -- inference pipeline, helper modules, background
+    tasks scheduled with ``asyncio.create_task`` -- can read the same value,
+    and echoes it back on the response.
+
+    Pair this with :class:`RequestIDLogFilter` so log records emitted during
+    the request automatically carry ``%(request_id)s``.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        token = request_id_var.set(request_id)
+        # Mirror to ``request.state`` so handlers that already read from
+        # there (e.g. the existing ``RequestLoggingMiddleware`` /
+        # ``AuditLogMiddleware``) keep working.
+        request.state.request_id = request_id
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_var.reset(token)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+class RequestIDLogFilter(logging.Filter):
+    """Inject the current request ID into every log record.
+
+    Reads :data:`request_id_var` and exposes it as ``record.request_id`` so
+    logging formatters can reference ``%(request_id)s``. Records emitted
+    outside of any request (startup, background workers without context)
+    receive ``"-"`` so the format string never KeyErrors.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        record.request_id = request_id_var.get() or "-"
+        return True
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -135,9 +185,25 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
 
 def setup_logging(log_level: str = "INFO") -> None:
-    """Configure structured JSON logging for the API."""
+    """Configure structured JSON logging for the API.
+
+    Installs :class:`RequestIDLogFilter` on the root logger so every log
+    record emitted during a request carries the current ``request_id``.
+    """
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
-        format='{"timestamp":"%(asctime)s","level":"%(levelname)s","message":"%(message)s"}',
-        datefmt="%Y-%m-%dT%H:%M:%S"
+        format=(
+            '{"timestamp":"%(asctime)s","level":"%(levelname)s",'
+            '"request_id":"%(request_id)s","message":"%(message)s"}'
+        ),
+        datefmt="%Y-%m-%dT%H:%M:%S",
     )
+    request_id_filter = RequestIDLogFilter()
+    root = logging.getLogger()
+    # Attach to the root logger and to any handlers already installed by
+    # ``logging.basicConfig`` so existing handlers also see ``request_id``.
+    if not any(isinstance(f, RequestIDLogFilter) for f in root.filters):
+        root.addFilter(request_id_filter)
+    for handler in root.handlers:
+        if not any(isinstance(f, RequestIDLogFilter) for f in handler.filters):
+            handler.addFilter(request_id_filter)

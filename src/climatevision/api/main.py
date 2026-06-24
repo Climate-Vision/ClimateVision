@@ -410,6 +410,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Register the RequestIDMiddleware LAST so it sits OUTERMOST in the
+    # middleware stack: it must run before every other middleware so the
+    # request_id ContextVar is set in time for AuditLogMiddleware's logger
+    # call (and for any inference-pipeline code further down). Starlette
+    # wraps middleware in reverse add_middleware order, so the last call
+    # is the outermost wrapper.
+    from climatevision.api.middleware import RequestIDMiddleware
+    app.add_middleware(RequestIDMiddleware)
 
     # Wire OWASP-aligned security controls (rate limiting, payload limits, etc.)
     app.add_middleware(SecurityMiddleware)
