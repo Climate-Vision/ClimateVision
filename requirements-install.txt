@@ -34,7 +34,7 @@ earthengine-api>=0.1.340
 fastapi>=0.95.0
 uvicorn[standard]>=0.20.0
 pydantic>=2.0.0
-python-multipart>=0.0.5
+python-multipart>=0.0.20
 
 # MLOps
 mlflow>=2.1.0
