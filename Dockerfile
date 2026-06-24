@@ -32,6 +32,7 @@ ENV OMP_NUM_THREADS=1
 # that do not provide pre-built wheels for this platform.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
+    libglib2.0-0 \
     libgdal-dev \
     build-essential \
     python3-dev \
