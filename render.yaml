@@ -14,7 +14,6 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    startCommand: ./scripts/render_entrypoint.sh
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
