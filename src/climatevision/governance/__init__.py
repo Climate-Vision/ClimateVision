@@ -7,6 +7,7 @@ Provides responsible AI capabilities:
 - Calibration metrics for confidence reliability
 - Anomaly detection for inference inputs/outputs
 - Model audit trails and version tracking
+- Datasheets for training datasets (Gebru et al., 2018)
 """
 
 from .explainability import (
@@ -53,6 +54,13 @@ from .calibration import (
     reliability_bins,
     write_calibration_report,
 )
+from .datasheet import (
+    Datasheet,
+    build_datasheet,
+    generate as generate_datasheet,
+    render_markdown as render_datasheet_markdown,
+    write_datasheet,
+)
 
 __all__ = [
     # Explainability
@@ -93,4 +101,10 @@ __all__ = [
     "maximum_calibration_error",
     "reliability_bins",
     "write_calibration_report",
+    # Datasheet
+    "Datasheet",
+    "build_datasheet",
+    "generate_datasheet",
+    "render_datasheet_markdown",
+    "write_datasheet",
 ]
