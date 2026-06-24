@@ -1,0 +1,41 @@
+# Render.com blueprint for ClimateVision
+# Deploys a single web service that serves both the FastAPI backend
+# and the built React frontend.
+#
+# To deploy:
+#   1. Create a Render account at https://render.com
+#   2. Install the Render CLI: https://render.com/docs/cli
+#   3. Run: ./scripts/setup_render_secrets.sh
+#   4. Push this file to GitHub; Render will detect it via Blueprint.
+
+services:
+  - type: web
+    name: climatevision-green
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    startCommand: ./scripts/render_entrypoint.sh
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_URL
+        value: sqlite:///app/outputs/climatevision.sqlite3
+      - key: CLIMATEVISION_ALLOW_DEV_KEY
+        value: "0"
+      - key: CLIMATEVISION_CORS_ORIGINS
+        value: "https://climatevision.green,https://www.climatevision.green"
+      # Set these via ./scripts/setup_render_secrets.sh
+      - key: GEE_SERVICE_ACCOUNT
+        sync: false
+      - key: GEE_SERVICE_ACCOUNT_KEY_JSON
+        sync: false
+      - key: GEE_PROJECT_ID
+        sync: false
+      - key: API_SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false

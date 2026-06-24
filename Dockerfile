@@ -49,10 +49,12 @@ RUN pip install --no-cache-dir -e .
 # Copy built frontend from the first stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Copy config and model directory structure
+# Copy config, models, and utility scripts
 COPY config.yaml ./
 COPY config/ ./config/
 COPY models/ ./models/
+COPY scripts/ ./scripts/
+RUN chmod +x scripts/*.sh
 
 # Create writable directories for SQLite and outputs
 RUN mkdir -p /app/outputs /app/data /app/logs
@@ -61,4 +63,5 @@ EXPOSE 8000
 
 # Note: GEE credentials and other secrets are supplied at runtime via env vars.
 # Do not bake credentials into the image.
-CMD ["uvicorn", "climatevision.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# The default CMD uses port 8000; Render overrides this via the PORT env var.
+CMD ["./scripts/render_entrypoint.sh"]
