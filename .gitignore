@@ -96,3 +96,6 @@ secrets/
 # Large model files
 models/demo_run/
 *.pth
+
+# Internal team role docs — never commit (personal info, public repo)
+team_docs/
