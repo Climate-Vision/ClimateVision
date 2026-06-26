@@ -211,5 +211,11 @@ def _ensure_builtins_registered() -> None:
         _registry.register(FloodingAnalysis, override=True)
     except ImportError as e:
         logger.warning(f"Could not import FloodingAnalysis: {e}")
-    
+
+    try:
+        from climatevision.analysis.flooding_sar import FloodingSARAnalysis
+        _registry.register(FloodingSARAnalysis, override=True)
+    except ImportError as e:
+        logger.warning(f"Could not import FloodingSARAnalysis: {e}")
+
     _registry._initialized = True
