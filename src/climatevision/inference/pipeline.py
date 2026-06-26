@@ -67,7 +67,60 @@ def _find_best_checkpoint(analysis_type: str) -> Optional[Path]:
     return candidates[0] if candidates else None
 
 
-def _load_model(analysis_type: str = "deforestation") -> tuple[UNet, torch.device]:
+def _find_onnx(analysis_type: str) -> Optional[Path]:
+    """
+    Search for a trained ONNX model for an analysis type.
+    Priority: config.yaml ``onnx_weights`` > newest models/<analysis_type>_*/model.onnx
+    > models/unet_<analysis_type>.onnx
+    """
+    model_cfg = get_model_config(analysis_type)
+    config_path = model_cfg.get("onnx_weights")
+    if config_path:
+        p = _PROJECT_ROOT / config_path
+        if p.exists():
+            return p
+
+    typed = sorted(
+        _MODELS_DIR.glob(f"{analysis_type}_*/model.onnx"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if typed:
+        return typed[0]
+
+    direct = _MODELS_DIR / f"unet_{analysis_type}.onnx"
+    return direct if direct.exists() else None
+
+
+class _ONNXSegmenter:
+    """
+    Drop-in replacement for :class:`UNet` in :func:`run_inference`.
+
+    Mimics the minimal torch.nn.Module surface that run_inference relies on
+    (``n_channels``, ``n_classes``, ``.eval()``, ``.to()``, and being callable
+    on a ``(N, C, H, W)`` tensor returning a logits tensor) so the rest of the
+    pipeline needs no changes whether the backing model is PyTorch or ONNX.
+    """
+
+    def __init__(self, session: Any, n_channels: int, n_classes: int, input_name: str):
+        self._session = session
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self._input_name = input_name
+
+    def eval(self) -> "_ONNXSegmenter":
+        return self
+
+    def to(self, _device: Any) -> "_ONNXSegmenter":  # device handled by the ORT provider
+        return self
+
+    def __call__(self, tensor: "torch.Tensor") -> "torch.Tensor":
+        arr = tensor.detach().cpu().numpy().astype(np.float32)
+        logits = self._session.run(None, {self._input_name: arr})[0]
+        return torch.from_numpy(np.ascontiguousarray(logits))
+
+
+def _load_model(analysis_type: str = "deforestation") -> tuple[Any, torch.device]:
     """Load (or return cached) U-Net model configured for the analysis type."""
     if analysis_type in _model_cache:
         return _model_cache[analysis_type]
@@ -104,6 +157,17 @@ def _load_model(analysis_type: str = "deforestation") -> tuple[UNet, torch.devic
             checkpoint.get("val_iou", 0.0),
         )
     else:
+        onnx_path = _find_onnx(analysis_type)
+        onnx_model = _try_load_onnx(onnx_path, n_channels, n_classes) if onnx_path else None
+        if onnx_model is not None:
+            logger.info(
+                "Loaded %s model from ONNX %s (%d channels, %d classes).",
+                analysis_type, onnx_path, n_channels, n_classes,
+            )
+            onnx_model.eval()
+            _model_cache[analysis_type] = (onnx_model, device)
+            return onnx_model, device
+
         logger.warning(
             "No trained model found for %s under %s — using untrained weights (demo).",
             analysis_type,
@@ -115,6 +179,28 @@ def _load_model(analysis_type: str = "deforestation") -> tuple[UNet, torch.devic
 
     _model_cache[analysis_type] = (model, device)
     return model, device
+
+
+def _try_load_onnx(
+    onnx_path: Path, n_channels: int, n_classes: int
+) -> Optional["_ONNXSegmenter"]:
+    """Build an ONNX inference session, or return None if onnxruntime is unavailable."""
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        logger.warning(
+            "Found ONNX model at %s but onnxruntime is not installed; "
+            "add 'onnxruntime' to requirements to serve it. Falling back.",
+            onnx_path,
+        )
+        return None
+
+    providers = ["CPUExecutionProvider"]
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    session = ort.InferenceSession(str(onnx_path), providers=providers)
+    input_name = session.get_inputs()[0].name
+    return _ONNXSegmenter(session, n_channels, n_classes, input_name)
 
 
 # ---------------------------------------------------------------------------

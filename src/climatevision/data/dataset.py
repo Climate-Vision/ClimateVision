@@ -82,11 +82,13 @@ class ForestDataset(Dataset):
         transform: Optional[Callable] = None,
         normalizer: Optional[Callable] = None,
         image_size: int = 256,
+        n_channels: int = 4,
     ):
         self.root = Path(root)
         self.transform = transform
         self.normalizer = normalizer
         self.image_size = image_size
+        self.n_channels = n_channels
 
         image_dir = self.root / "images"
         mask_dir  = self.root / "masks"
@@ -119,13 +121,13 @@ class ForestDataset(Dataset):
         image = _load_tif(img_path)   # (C, H, W) float32
         mask  = _load_mask(mask_path) # (H, W)    uint8
 
-        # Ensure 4 bands (pad with zeros if fewer)
+        # Ensure exactly n_channels bands (pad with zeros if fewer, truncate if more)
         c, h, w = image.shape
-        if c < 4:
-            pad = np.zeros((4 - c, h, w), dtype=np.float32)
+        if c < self.n_channels:
+            pad = np.zeros((self.n_channels - c, h, w), dtype=np.float32)
             image = np.concatenate([image, pad], axis=0)
-        elif c > 4:
-            image = image[:4]
+        elif c > self.n_channels:
+            image = image[:self.n_channels]
 
         # Ensure spatial size — pad if smaller, random crop via transform
         if h < self.image_size or w < self.image_size:
@@ -217,6 +219,7 @@ def create_dataloaders(
     normalizer: Optional[Callable] = None,
     pin_memory: bool = True,
     use_weighted_sampler: bool = True,
+    n_channels: int = 4,
 ) -> dict[str, DataLoader]:
     """
     Build train / val / test DataLoaders from a data directory.
@@ -252,6 +255,7 @@ def create_dataloaders(
             transform=transform,
             normalizer=normalizer,
             image_size=image_size,
+            n_channels=n_channels,
         )
 
         sampler = None

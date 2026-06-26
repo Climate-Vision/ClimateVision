@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 from datetime import datetime
 from typing import Optional
@@ -77,13 +78,17 @@ class APIKeyAuth:
         if not api_key or not api_key.startswith("cv_"):
             return None
 
-        # Development bypass — allow cv_dev for local testing
+        # Development bypass — only when explicitly enabled. Off by default so
+        # production is secure even if CLIMATEVISION_ALLOW_DEV_KEY is unset.
         if api_key == "cv_dev":
-            return {
-                "id": 0,
-                "name": "Development",
-                "demo": True,
-            }
+            if os.environ.get("CLIMATEVISION_ALLOW_DEV_KEY", "0") == "1":
+                return {
+                    "id": 0,
+                    "name": "Development",
+                    "demo": True,
+                }
+            logger.warning("cv_dev key rejected: dev bypass disabled in this environment.")
+            return None
 
         # Check cache first
         key_hash = self.hash_key(api_key)

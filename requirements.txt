@@ -49,6 +49,9 @@ optuna>=3.1.0
 # Explainability & Governance
 shap>=0.42.0
 
+# Optimised inference (serve exported ONNX models)
+onnxruntime>=1.16.0
+
 # Testing and Development
 pytest>=7.0.0
 pytest-cov>=3.0.0
