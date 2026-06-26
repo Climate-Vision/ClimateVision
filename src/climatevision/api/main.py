@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Literal
 
+from contextlib import asynccontextmanager
+
 from pydantic import field_validator
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request
@@ -40,6 +42,7 @@ from climatevision.db import (
     get_subscriptions_for_organization,
     create_organization_alert,
     get_alerts_for_organization,
+    get_pending_alerts,
     acknowledge_alert,
     mark_alert_delivered,
 )
@@ -48,6 +51,7 @@ from climatevision.inference.flood_pipeline import run_flood_inference_from_gee
 from climatevision.api.auth import require_api_key
 from climatevision.governance import explain_prediction, SHAPExplainer
 from climatevision.security.api_security import SecurityMiddleware
+from climatevision.workers.alert_delivery import AlertDeliveryWorker
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +391,18 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 def create_app() -> FastAPI:
     init_db()
 
+    # Set up alert delivery worker
+    alert_worker = AlertDeliveryWorker()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        """Start background workers on app startup, stop on shutdown."""
+        await alert_worker.start()
+        logger.info("Alert delivery worker started")
+        yield
+        await alert_worker.stop()
+        logger.info("Alert delivery worker stopped")
+
     app = FastAPI(
         title="ClimateVision API",
         version="0.2.0",
@@ -402,6 +418,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
 
     app.add_middleware(AuditLogMiddleware)
@@ -1145,6 +1162,39 @@ def create_app() -> FastAPI:
         if not success:
             raise HTTPException(status_code=404, detail="Alert not found")
         return {"success": True, "alert_id": alert_id}
+
+    @app.get("/api/organizations/{org_id}/alerts/pending")
+    def list_pending_alerts(
+        org_id: int,
+        limit: int = Query(default=50, le=200),
+    ) -> list[AlertResponse]:
+        """List pending (undelivered) alerts for an organization.
+
+        This endpoint is designed for monitoring and dashboard use,
+        showing alerts that the delivery worker has not yet processed.
+        """
+        org = get_organization(org_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        alerts = get_pending_alerts(max_attempts=3, limit=limit)
+        # Filter to this specific organization's alerts
+        org_alerts = [a for a in alerts if a["organization_id"] == org_id]
+
+        return [
+            AlertResponse(
+                id=alert["id"],
+                organization_id=alert["organization_id"],
+                alert_type=alert["alert_type"],
+                severity=alert["severity"],
+                title=alert["title"],
+                message=alert["message"],
+                delivered=bool(alert["delivered"]),
+                acknowledged=bool(alert["acknowledged"]),
+                created_at=alert["created_at"],
+            )
+            for alert in org_alerts[:limit]
+        ]
 
     # ===== Static Files =====
 
