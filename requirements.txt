@@ -39,7 +39,7 @@ dask[complete]>=2023.1.0
 fastapi>=0.95.0
 uvicorn[standard]>=0.20.0
 pydantic>=2.0.0
-email-validator>=2.0.0
+email-validator>=2.3.0
 python-multipart>=0.0.20
 
 # MLOps (optional)
