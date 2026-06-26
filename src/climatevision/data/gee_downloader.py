@@ -194,6 +194,189 @@ def download_tile_for_analysis(
     return out_path, metadata
 
 
+def download_sar_tile(
+    bbox: list[float],
+    start_date: str,
+    end_date: str,
+    output_dir: str | Path | None = None,
+    scale_m: int = 30,
+) -> tuple[Path, dict[str, Any]]:
+    """
+    Download a Sentinel-1 GRD VV/VH composite (sigma0, dB) for flood detection.
+
+    Uses COPERNICUS/S1_GRD, IW mode, ascending+descending merged via median.
+    Falls back to a synthetic SAR tile (explicitly tagged) when GEE is
+    unavailable or no scenes are found.
+
+    Returns:
+        (file_path, metadata). Band order in the GeoTIFF is [VV, VH] in dB.
+    """
+    if output_dir is None:
+        output_dir = _SATELLITE_DIR
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_start = start_date.replace("-", "")
+    safe_end = end_date.replace("-", "")
+    stem = f"sar_{safe_start}_{safe_end}_{'_'.join(str(round(c, 4)) for c in bbox)}"
+    out_path = output_dir / f"{stem}.tif"
+
+    try:
+        ee = _initialize_ee()
+        rasterio = __import__("rasterio")
+    except Exception as exc:
+        logger.warning("GEE unavailable for SAR (%s). Using synthetic SAR fallback.", exc)
+        return _generate_synthetic_sar_tile(bbox, start_date, end_date, out_path)
+
+    region = ee.Geometry.Rectangle(bbox)
+    collection = (
+        ee.ImageCollection("COPERNICUS/S1_GRD")
+        .filterBounds(region)
+        .filterDate(start_date, end_date)
+        .filter(ee.Filter.eq("instrumentMode", "IW"))
+        .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
+        .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VH"))
+        .select(["VV", "VH"])
+    )
+
+    count = collection.size().getInfo()
+    if count == 0:
+        logger.warning("No S1 scenes for %s to %s. Using synthetic SAR fallback.", start_date, end_date)
+        return _generate_synthetic_sar_tile(bbox, start_date, end_date, out_path)
+
+    # S1_GRD is already terrain-corrected sigma0 in dB.
+    image = collection.median().clip(region)
+    url = image.getDownloadURL({"region": region, "scale": scale_m, "format": "GEO_TIFF"})
+
+    tmp = tempfile.mktemp(suffix=".tif")
+    urllib.request.urlretrieve(url, tmp)
+    with rasterio.open(tmp) as src:
+        data = src.read().astype(np.float32)
+        profile = src.profile
+    os.unlink(tmp)
+
+    profile.update(driver="GTiff", dtype="float32", count=data.shape[0])
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(data)
+
+    metadata: dict[str, Any] = {
+        "source": "gee",
+        "collection": "COPERNICUS/S1_GRD",
+        "bbox": bbox,
+        "start_date": start_date,
+        "end_date": end_date,
+        "bands": ["VV", "VH"],
+        "scale_m": scale_m,
+        "images_available": count,
+        "is_synthetic": False,
+        "shape": list(data.shape),
+    }
+    logger.info("Downloaded S1 SAR tile to %s (%d scenes)", out_path, count)
+    return out_path, metadata
+
+
+def download_permanent_water_occurrence(
+    bbox: list[float],
+    output_dir: str | Path | None = None,
+    scale_m: int = 30,
+) -> tuple[Optional[Path], dict[str, Any]]:
+    """
+    Download JRC Global Surface Water 'occurrence' (%, 0-100) for the bbox.
+
+    Occurrence is the fraction of valid observations (1984-present) in which a
+    pixel was water. Thresholding it (see permanent_water_from_occurrence) yields
+    the permanent-water reference used to separate flood from permanent water.
+
+    Returns:
+        (file_path_or_None, metadata). Returns (None, {...is_synthetic:True})
+        when GEE is unavailable -- callers should then derive a synthetic
+        reference or skip the permanent/flood split rather than guess.
+    """
+    if output_dir is None:
+        output_dir = _SATELLITE_DIR
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    stem = f"gsw_occurrence_{'_'.join(str(round(c, 4)) for c in bbox)}"
+    out_path = output_dir / f"{stem}.tif"
+
+    try:
+        ee = _initialize_ee()
+        rasterio = __import__("rasterio")
+    except Exception as exc:
+        logger.warning("GEE unavailable for JRC GSW (%s). No permanent-water reference.", exc)
+        return None, {"source": "unavailable", "bbox": bbox, "is_synthetic": True}
+
+    region = ee.Geometry.Rectangle(bbox)
+    occurrence = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence").clip(region)
+    url = occurrence.getDownloadURL({"region": region, "scale": scale_m, "format": "GEO_TIFF"})
+
+    tmp = tempfile.mktemp(suffix=".tif")
+    urllib.request.urlretrieve(url, tmp)
+    with rasterio.open(tmp) as src:
+        data = src.read(1).astype(np.float32)
+        profile = src.profile
+    os.unlink(tmp)
+
+    profile.update(driver="GTiff", dtype="float32", count=1)
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(data[np.newaxis, :, :])
+
+    metadata = {
+        "source": "gee",
+        "asset": "JRC/GSW1_4/GlobalSurfaceWater",
+        "band": "occurrence",
+        "bbox": bbox,
+        "scale_m": scale_m,
+        "is_synthetic": False,
+        "shape": list(data.shape),
+    }
+    logger.info("Downloaded JRC GSW occurrence to %s", out_path)
+    return out_path, metadata
+
+
+def _generate_synthetic_sar_tile(
+    bbox: list[float],
+    start_date: str,
+    end_date: str,
+    out_path: Path,
+) -> tuple[Path, dict[str, Any]]:
+    """Synthetic Sentinel-1 VV/VH tile (dB), explicitly tagged is_synthetic."""
+    rasterio = __import__("rasterio")
+
+    tile_size = _get_default_tile_size()
+    h, w = tile_size, tile_size
+    seed = int(abs(sum(v * 1000 * (i + 1) for i, v in enumerate(bbox)))) % (2 ** 31)
+    rng = np.random.default_rng(seed)
+
+    # Land ~ -10 dB, water ~ -22 dB; carve a water region into the scene.
+    vv = rng.normal(-9.0, 2.5, (h, w)).astype(np.float32)
+    vh = rng.normal(-15.0, 2.5, (h, w)).astype(np.float32)
+    water = np.zeros((h, w), dtype=bool)
+    water[h // 3 : 2 * h // 3, w // 4 : 3 * w // 4] = True
+    vv[water] = rng.normal(-20.0, 1.5, int(water.sum()))
+    vh[water] = rng.normal(-26.0, 1.5, int(water.sum()))
+    data = np.stack([vv, vh], axis=0)
+
+    transform = rasterio.transform.from_bounds(bbox[0], bbox[1], bbox[2], bbox[3], w, h)
+    profile = {
+        "driver": "GTiff", "dtype": "float32", "count": 2,
+        "height": h, "width": w, "crs": "EPSG:4326", "transform": transform,
+    }
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(data)
+
+    metadata: dict[str, Any] = {
+        "source": "synthetic_fallback",
+        "collection": "COPERNICUS/S1_GRD",
+        "bbox": bbox, "start_date": start_date, "end_date": end_date,
+        "bands": ["VV", "VH"], "scale_m": 30, "images_available": 0,
+        "is_synthetic": True, "shape": list(data.shape),
+    }
+    logger.info("Generated synthetic SAR fallback tile to %s", out_path)
+    return out_path, metadata
+
+
 def _generate_synthetic_tile(
     bbox: list[float],
     start_date: str,

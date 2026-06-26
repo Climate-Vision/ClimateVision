@@ -71,6 +71,13 @@ setup(
         "processing": [
             "dask[complete]>=2023.1.0",
         ],
+        "flood": [
+            # SAR ensemble + permanent/flood classification + OSM road impact + eval
+            "scikit-image>=0.19.0",   # DLR Otsu / morphology
+            "rasterio>=1.3.0",        # GeoTIFF I/O (needs system GDAL)
+            "osmnx>=1.6.0",           # OSM road/building download for impact
+            "segmentation-models-pytorch>=0.3.0",  # optional FloodUNet path
+        ],
         "satellite": [
             "sentinelsat>=1.1.0",
             "earthengine-api>=0.1.340",
