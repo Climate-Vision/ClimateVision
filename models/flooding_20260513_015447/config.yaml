@@ -1,0 +1,38 @@
+analysis:
+  type: flooding
+data:
+  batch_size: 2
+  dir: data/processed/flood
+  image_size: 128
+  num_workers: 4
+  pin_memory: true
+  use_weighted_sampler: true
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  focal_weight: 0.5
+  type: combined
+  use_class_weights: true
+model:
+  architecture: attention_unet
+  bilinear: true
+  in_channels: 4
+  num_classes: 2
+normalizer_stats: ''
+optimizer:
+  learning_rate: 0.0001
+  min_lr: 1.0e-06
+  weight_decay: 0.0001
+output:
+  run_name: ''
+  save_dir: models
+schedule:
+  checkpoint_interval: 10
+  epochs: 2
+  warmup_epochs: 5
+training:
+  early_stopping_patience: 15
+  ema_decay: 0.99
+  grad_clip: 1.0
+  mixed_precision: true
+  use_ema: true
