@@ -121,8 +121,14 @@ class PredictRequest(BaseModel):
     kind: str = Field(default="demo")
     analysis_type: AnalysisType = Field(default="deforestation")
     bbox: Optional[list[float]] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: Optional[str] = Field(
+        default=None,
+        description="Start date in YYYY-MM-DD format. Must be earlier than end_date.",
+    )
+    end_date: Optional[str] = Field(
+        default=None,
+        description="End date in YYYY-MM-DD format. Must be later than start_date.",
+    )
 
     @field_validator("bbox")
     @classmethod
@@ -651,9 +657,6 @@ def create_app() -> FastAPI:
         org: dict[str, Any] = Depends(require_api_key),
     ) -> dict[str, Any]:
         """Run prediction using bounding box and date range."""
-        if body.start_date and body.end_date and body.start_date > body.end_date:
-            raise HTTPException(status_code=400, detail="start_date must be before end_date")
-
         created_at = _utc_now_iso()
         bbox_json = json.dumps(body.bbox) if body.bbox else None
 
