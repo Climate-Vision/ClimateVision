@@ -50,7 +50,7 @@ optuna>=3.1.0
 shap>=0.42.0
 
 # Optimised inference (serve exported ONNX models)
-onnxruntime>=1.16.0
+onnxruntime>=1.24.3
 
 # Testing and Development
 pytest>=7.0.0
