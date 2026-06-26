@@ -56,7 +56,7 @@ onnxruntime>=1.24.3
 # Testing and Development
 pytest>=7.0.0
 pytest-cov>=3.0.0
-black>=22.0.0
+black>=26.5.1
 flake8>=4.0.0
 mypy>=0.950
 jupyter>=1.1.1
