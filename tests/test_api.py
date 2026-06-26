@@ -25,8 +25,15 @@ def test_predict_json_rejects_missing_auth(client: TestClient) -> None:
     assert "API key required" in response.json()["detail"]
 
 
-def test_predict_json_accepts_dev_key(client: TestClient) -> None:
-    """POST /api/predict should accept the cv_dev development key."""
+def test_predict_json_accepts_dev_key(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /api/predict should accept the cv_dev development key.
+
+    The dev bypass is gated behind CLIMATEVISION_ALLOW_DEV_KEY, so enable it
+    explicitly for this test (production leaves it unset/disabled).
+    """
+    monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     payload = {
         "bbox": [-60.0, -15.0, -45.0, -5.0],
         "start_date": "2023-01-01",
