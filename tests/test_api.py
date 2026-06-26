@@ -51,8 +51,11 @@ def test_predict_json_accepts_dev_key(
     assert response.status_code in (200, 500)
 
 
-def test_predict_valid_date_range_reaches_inference(client: TestClient) -> None:
+def test_predict_valid_date_range_reaches_inference(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """POST /api/predict with valid date range should reach the inference layer."""
+    monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     payload = {
         "bbox": [-60.0, -15.0, -45.0, -5.0],
         "start_date": "2023-01-01",
@@ -76,8 +79,11 @@ def test_predict_valid_date_range_reaches_inference(client: TestClient) -> None:
     mock_infer.assert_called_once()
 
 
-def test_predict_reversed_date_range_returns_422(client: TestClient) -> None:
+def test_predict_reversed_date_range_returns_422(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """POST /api/predict with start_date > end_date should return 422."""
+    monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     payload = {
         "bbox": [-60.0, -15.0, -45.0, -5.0],
         "start_date": "2026-06-01",
@@ -95,8 +101,11 @@ def test_predict_reversed_date_range_returns_422(client: TestClient) -> None:
     assert any("start_date" in msg or "end_date" in msg for msg in error_messages)
 
 
-def test_predict_equal_dates_returns_422(client: TestClient) -> None:
+def test_predict_equal_dates_returns_422(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """POST /api/predict with start_date == end_date should return 422."""
+    monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     payload = {
         "bbox": [-60.0, -15.0, -45.0, -5.0],
         "start_date": "2023-06-01",
