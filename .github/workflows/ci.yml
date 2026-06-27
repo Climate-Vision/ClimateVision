@@ -5,6 +5,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # Allow this workflow to be called by deploy.yml as a reusable "test" gate.
+  workflow_call:
 
 jobs:
   python:
