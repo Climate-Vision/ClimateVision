@@ -22,7 +22,10 @@ services:
       - key: PORT
         value: "8000"
       - key: DATABASE_URL
-        value: sqlite:///app/outputs/climatevision.sqlite3
+        # Four slashes = absolute path (/app/outputs/...). Three slashes would be
+        # parsed as a project-relative path (PROJECT_ROOT/app/outputs) which does
+        # not exist in the container and causes "unable to open database file".
+        value: sqlite:////app/outputs/climatevision.sqlite3
       - key: CLIMATEVISION_ALLOW_DEV_KEY
         value: "0"
       - key: CLIMATEVISION_CORS_ORIGINS
