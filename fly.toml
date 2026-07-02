@@ -23,6 +23,10 @@ primary_region = 'lhr'
 [env]
   PYTHONUNBUFFERED = '1'
   OMP_NUM_THREADS = '1'
+  GEE_SERVICE_ACCOUNT = 'climatevision-gee@kinos-473422.iam.gserviceaccount.com'
+  GEE_PROJECT_ID = 'kinos-473422'
+  CLIMATEVISION_ALLOW_DEV_KEY = '0'
+  CLIMATEVISION_CORS_ORIGINS = 'https://climatevision.green,https://www.climatevision.green,https://climatevision-green.fly.dev'
   # Four slashes = absolute path (/app/outputs/...). Three slashes would be
   # parsed as a relative path and cause "unable to open database file".
   DATABASE_URL = 'sqlite:////app/outputs/climatevision.sqlite3'
