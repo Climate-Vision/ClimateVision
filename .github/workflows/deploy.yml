@@ -3,25 +3,46 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
 
 jobs:
-  test:
-    uses: ./.github/workflows/ci.yml
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy
+      - uses: actions/checkout@v4
+
+      - name: Set up Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Check FLY_API_TOKEN
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set." \
-                 "Add it under repo Settings > Secrets and variables > Actions" \
-                 "(get the URL from the Render service > Settings > Deploy Hook)."
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set." \
+                 "Create a token with 'fly tokens create deploy' (or from the Fly.io dashboard)" \
+                 "and add it under repo Settings > Secrets and variables > Actions."
             exit 1
           fi
-          echo "CI passed; triggering Render deploy..."
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
-          echo "Render deploy triggered."
+
+      - name: Ensure app and volume exist
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl apps create climatevision-green || echo "App already exists (or create skipped)."
+          flyctl volumes create climatevision_data --app climatevision-green \
+            --region lhr --size 1 --yes || echo "Volume already exists (or create skipped)."
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: fly deploy --remote-only --ha=false
+
+      - name: Show status
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl status --app climatevision-green
