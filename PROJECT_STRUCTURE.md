@@ -280,8 +280,8 @@ Post-processing (inference/)
 
 1. **Set up development environment**
    ```bash
+   pip install -r requirements.txt
    pip install -e .
-   pip install -r requirements-dev.txt
    ```
 
 2. **Run existing code**
