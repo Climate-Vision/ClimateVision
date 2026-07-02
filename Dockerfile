@@ -40,6 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 COPY requirements.txt ./
+# Install CPU-only PyTorch first: the default CUDA wheels unpack to >8GB,
+# exceeding Fly.io's maximum uncompressed image size. The Fly VM has no GPU.
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install the ClimateVision package

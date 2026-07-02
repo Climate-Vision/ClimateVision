@@ -34,13 +34,16 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           flyctl apps create climatevision-green || echo "App already exists (or create skipped)."
-          flyctl volumes create climatevision_data --app climatevision-green \
-            --region lhr --size 1 --yes || echo "Volume already exists (or create skipped)."
+          if ! flyctl volumes list --app climatevision-green | grep -q climatevision_data; then
+            flyctl volumes create climatevision_data --app climatevision-green --region lhr --size 1 --yes
+          else
+            echo "Volume already exists."
+          fi
 
       - name: Deploy to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --ha=false
+        run: flyctl deploy --remote-only --ha=false --wait-timeout 600
 
       - name: Show status
         env:
