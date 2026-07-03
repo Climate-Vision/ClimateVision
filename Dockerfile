@@ -13,6 +13,9 @@ RUN npm ci
 
 COPY frontend/ ./
 ENV VITE_API_BASE_URL=
+# Google Maps browser key is baked in at build time (Vite inlines import.meta.env).
+ARG VITE_GOOGLE_MAPS_API_KEY=
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 RUN npm run build
 
 # -----------------------------------------------------------------------------

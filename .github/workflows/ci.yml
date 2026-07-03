@@ -14,7 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          lfs: true
+          # LFS disabled: the repo's LFS bandwidth budget is exhausted and the
+          # 254MB flood model isn't needed for tests (code falls back to the
+          # synthetic/demo model path, same as production).
+          lfs: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
