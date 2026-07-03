@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from pydantic import field_validator
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -459,10 +459,13 @@ def create_app() -> FastAPI:
 
     # ===== Core Endpoints =====
 
-    @app.get("/")
-    def root() -> RedirectResponse:
-        """Redirect to API docs when no frontend is built."""
-        return RedirectResponse(url="/docs", status_code=302)
+    _frontend_dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
+
+    if not (_frontend_dist / "index.html").exists():
+        @app.get("/")
+        def root() -> RedirectResponse:
+            """Redirect to API docs when no frontend is built."""
+            return RedirectResponse(url="/docs", status_code=302)
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
@@ -1198,11 +1201,20 @@ def create_app() -> FastAPI:
 
     # ===== Static Files =====
 
-    # Serve built frontend when dist exists (production mode)
-    frontend_dir = Path(__file__).resolve().parents[3] / "frontend"
-    dist_dir = frontend_dir / "dist"
-    if dist_dir.exists():
-        app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="frontend")
+    # Serve built frontend when dist exists (production mode).
+    # Registered last so all API routes above take precedence. Unknown paths
+    # fall back to index.html so React Router deep links (/runs, /upload, ...)
+    # work on direct navigation and refresh.
+    dist_dir = _frontend_dist
+    if (dist_dir / "index.html").exists():
+        app.mount("/assets", StaticFiles(directory=str(dist_dir / "assets")), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def frontend(full_path: str) -> FileResponse:
+            candidate = dist_dir / full_path
+            if full_path and ".." not in full_path and candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(dist_dir / "index.html")
 
     return app
 
