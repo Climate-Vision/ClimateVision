@@ -21,7 +21,7 @@ albumentations>=2.0.8
 # Visualization
 matplotlib>=3.10.9
 seaborn>=0.13.2
-plotly>=6.7.0
+plotly>=6.8.0
 
 # Utilities
 tqdm>=4.62.0
