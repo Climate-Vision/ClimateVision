@@ -1,5 +1,5 @@
 # Core ML and Data Processing
-numpy>=1.21.0
+numpy>=2.2.6
 pandas>=2.3.3
 torch>=2.12.1
 torchvision>=0.23.0
