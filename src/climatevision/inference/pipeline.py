@@ -198,7 +198,20 @@ def _try_load_onnx(
     providers = ["CPUExecutionProvider"]
     if "CUDAExecutionProvider" in ort.get_available_providers():
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-    session = ort.InferenceSession(str(onnx_path), providers=providers)
+    try:
+        session = ort.InferenceSession(str(onnx_path), providers=providers)
+    except Exception:
+        # The file exists but is not a loadable model. Most commonly this is a
+        # Git LFS pointer file left behind by a checkout without LFS objects
+        # (a few hundred bytes of text instead of the real weights). Treat it
+        # the same as a missing model so callers fall back to demo weights.
+        logger.warning(
+            "ONNX model at %s could not be loaded (possibly a Git LFS pointer "
+            "file). Falling back to untrained/demo weights.",
+            onnx_path,
+            exc_info=True,
+        )
+        return None
     input_name = session.get_inputs()[0].name
     return _ONNXSegmenter(session, n_channels, n_classes, input_name)
 
