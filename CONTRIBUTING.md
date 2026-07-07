@@ -79,7 +79,6 @@ Ready for something meatier? These issues close critical gaps in our production 
    source venv/bin/activate
    pip install -r requirements.txt
    pip install -e .
-   pip install -r requirements-dev.txt
    ```
 
 4. **Make your changes**
