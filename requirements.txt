@@ -31,7 +31,7 @@ python-dotenv>=0.19.0
 
 # Satellite Data APIs
 sentinelsat>=1.2.1
-earthengine-api>=1.7.32
+earthengine-api>=1.7.35
 
 # Distributed Computing (optional)
 dask[complete]>=2023.1.0
