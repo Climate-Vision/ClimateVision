@@ -109,7 +109,30 @@ class CarbonEstimator:
         Returns:
             CarbonEstimate with carbon loss and uncertainty bounds
         """
-        deforested_pixels = int(deforestation_mask.sum())
+        return self.estimate_from_pixel_count(
+            int(deforestation_mask.sum()), confidence_map
+        )
+
+    def estimate_from_pixel_count(
+        self,
+        deforested_pixels: int,
+        confidence_map: Optional[np.ndarray] = None
+    ) -> CarbonEstimate:
+        """
+        Estimate carbon loss directly from a deforested-pixel count.
+
+        Equivalent to :meth:`estimate_from_mask` for a mask containing this
+        many positive pixels, but without materialising the mask array — a
+        real tile can be tens of millions of pixels.
+
+        Args:
+            deforested_pixels: Number of deforested pixels
+            confidence_map: Optional confidence scores per pixel
+
+        Returns:
+            CarbonEstimate with carbon loss and uncertainty bounds
+        """
+        deforested_pixels = int(deforested_pixels)
         pixel_area_ha = (self.pixel_size_m ** 2) / 10000
         hectares = deforested_pixels * pixel_area_ha
 

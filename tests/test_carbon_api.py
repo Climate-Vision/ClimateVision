@@ -42,6 +42,18 @@ def test_carbon_math_matches_known_values() -> None:
     assert result["co2_equivalent"] == EXPECTED_CO2
 
 
+def test_pixel_count_matches_mask() -> None:
+    """estimate_from_pixel_count must equal estimate_from_mask without the array."""
+    import numpy as np
+
+    from climatevision.analytics.carbon import CarbonEstimator
+
+    estimator = CarbonEstimator()
+    from_count = estimator.estimate_from_pixel_count(KNOWN_PIXELS)
+    from_mask = estimator.estimate_from_mask(np.ones(KNOWN_PIXELS, dtype=np.uint8))
+    assert from_count == from_mask
+
+
 def test_predict_without_flag_omits_carbon(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -113,6 +125,7 @@ def test_report_endpoint_returns_impact_report(
 
     assert body["run_id"] == run_id
     assert body["hectares_lost"] == EXPECTED_HECTARES
+    assert body["biomass_tonnes"] > body["carbon_tonnes"] > 0
     assert body["carbon_tonnes"] == EXPECTED_CARBON
     assert body["co2_equivalent"] == EXPECTED_CO2
     assert body["region_bbox"] == [-60.0, -15.0, -45.0, -5.0]

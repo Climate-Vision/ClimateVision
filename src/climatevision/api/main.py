@@ -798,11 +798,10 @@ def create_app() -> FastAPI:
         _validate_forest_type(forest_type)
 
         try:
-            import numpy as np
             from climatevision.analytics.carbon import CarbonEstimator
 
             estimator = CarbonEstimator(forest_type=forest_type, region=region)
-            estimate = estimator.estimate_from_mask(np.ones(pixels, dtype=np.uint8))
+            estimate = estimator.estimate_from_pixel_count(pixels)
         except Exception as exc:
             logger.exception("Impact report generation failed for run %s", run_id)
             raise HTTPException(
@@ -814,6 +813,7 @@ def create_app() -> FastAPI:
         return {
             "run_id": run_id,
             "hectares_lost": estimate.hectares,
+            "biomass_tonnes": estimate.biomass_tonnes,
             "carbon_tonnes": estimate.carbon_tonnes,
             "co2_equivalent": estimate.co2_equivalent,
             "confidence_interval": {
