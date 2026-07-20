@@ -224,3 +224,25 @@ def test_predict_rejects_unknown_forest_type(
             headers={"X-API-Key": "cv_dev"},
         )
     assert response.status_code == 422
+
+
+def test_predict_rejects_unknown_region(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unmatched region must 422 rather than silently applying a 1.0 factor."""
+    monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
+    with patch(
+        "climatevision.api.main.run_inference_from_gee",
+        return_value=_deforestation_payload(),
+    ):
+        response = client.post(
+            "/api/predict",
+            json={
+                "bbox": [-60.0, -15.0, -45.0, -5.0],
+                "analysis_type": "deforestation",
+                "enable_carbon": True,
+                "region": "Amazon",  # wrong case; real key is "amazon"
+            },
+            headers={"X-API-Key": "cv_dev"},
+        )
+    assert response.status_code == 422

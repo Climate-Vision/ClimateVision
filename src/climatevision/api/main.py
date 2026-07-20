@@ -272,6 +272,28 @@ def _validate_forest_type(forest_type: Optional[str]) -> None:
         )
 
 
+def _validate_region(region: Optional[str]) -> None:
+    """Reject an unknown region instead of silently applying no adjustment.
+
+    An unmatched region (e.g. ``Amazon`` capitalised, or ``amazon `` with a
+    trailing space) would otherwise fall back to a 1.0 factor and return a
+    confident-looking number that is wrong by the real regional adjustment.
+    Since these figures are meant to be cited, fail loudly instead.
+    """
+    if region is None:
+        return
+    from climatevision.analytics.carbon import REGIONAL_FACTORS
+
+    if region not in REGIONAL_FACTORS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown region '{region}'. "
+                f"Valid values: {sorted(REGIONAL_FACTORS)}"
+            ),
+        )
+
+
 # Organization models
 class CreateOrganizationRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
@@ -796,6 +818,7 @@ def create_app() -> FastAPI:
         forest_type = carbon_meta.get("forest_type", "tropical_moist")
         region = carbon_meta.get("region", "default")
         _validate_forest_type(forest_type)
+        _validate_region(region)
 
         try:
             from climatevision.analytics.carbon import CarbonEstimator
@@ -837,6 +860,7 @@ def create_app() -> FastAPI:
         """Run prediction using bounding box and date range."""
         if body.enable_carbon:
             _validate_forest_type(body.forest_type)
+            _validate_region(body.region)
 
         created_at = _utc_now_iso()
         bbox_json = json.dumps(body.bbox) if body.bbox else None
