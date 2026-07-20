@@ -246,7 +246,30 @@ def _compute_carbon_estimation(
         "carbon_tonnes": estimate["carbon_tonnes"],
         "hectares_lost": estimate["hectares"],
         "co2_equivalent": estimate["co2_equivalent"],
+        "forest_type": forest_type or "tropical_moist",
+        "region": region or "default",
     }
+
+
+def _validate_forest_type(forest_type: Optional[str]) -> None:
+    """Reject an unknown forest_type instead of silently defaulting.
+
+    A typo such as ``tropical-moist`` (hyphen) would otherwise fall through
+    to a generic biomass density and return plausible-looking but wrong
+    numbers with a 200 OK.
+    """
+    if forest_type is None:
+        return
+    from climatevision.analytics.carbon import AGB_DENSITY
+
+    if forest_type not in AGB_DENSITY:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown forest_type '{forest_type}'. "
+                f"Valid values: {sorted(AGB_DENSITY)}"
+            ),
+        )
 
 
 # Organization models
@@ -765,11 +788,20 @@ def create_app() -> FastAPI:
                 status_code=422, detail="Result payload has no pixel count to report on"
             )
 
+        # Reuse the forest_type/region chosen at prediction time so the report
+        # and the /api/predict response describe the same run. Falling back to
+        # the estimator defaults keeps reports working for runs saved before
+        # carbon was requested.
+        carbon_meta = payload.get("carbon_estimation") or {}
+        forest_type = carbon_meta.get("forest_type", "tropical_moist")
+        region = carbon_meta.get("region", "default")
+        _validate_forest_type(forest_type)
+
         try:
             import numpy as np
             from climatevision.analytics.carbon import CarbonEstimator
 
-            estimator = CarbonEstimator()
+            estimator = CarbonEstimator(forest_type=forest_type, region=region)
             estimate = estimator.estimate_from_mask(np.ones(pixels, dtype=np.uint8))
         except Exception as exc:
             logger.exception("Impact report generation failed for run %s", run_id)
@@ -788,6 +820,7 @@ def create_app() -> FastAPI:
                 "lower": estimate.ci_lower,
                 "upper": estimate.ci_upper,
                 "uncertainty_pct": estimate.uncertainty_pct,
+                "unit": "tCO2e",
             },
             "region_bbox": region_bbox,
             "forest_type": estimate.forest_type,
@@ -802,6 +835,9 @@ def create_app() -> FastAPI:
         org: dict[str, Any] = Depends(require_api_key),
     ) -> dict[str, Any]:
         """Run prediction using bounding box and date range."""
+        if body.enable_carbon:
+            _validate_forest_type(body.forest_type)
+
         created_at = _utc_now_iso()
         bbox_json = json.dumps(body.bbox) if body.bbox else None
 
