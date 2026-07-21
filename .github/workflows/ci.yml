@@ -65,6 +65,9 @@ jobs:
       - name: Type check and build
         run: npm run build
 
+      - name: Run unit tests
+        run: npm test
+
   docker:
     runs-on: ubuntu-latest
     steps:
