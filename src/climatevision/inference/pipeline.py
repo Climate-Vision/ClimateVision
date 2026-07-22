@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -102,6 +103,8 @@ class _ONNXSegmenter:
     pipeline needs no changes whether the backing model is PyTorch or ONNX.
     """
 
+    backend = "onnx"
+
     def __init__(self, session: Any, n_channels: int, n_classes: int, input_name: str):
         self._session = session
         self.n_channels = n_channels
@@ -121,7 +124,17 @@ class _ONNXSegmenter:
 
 
 def _load_model(analysis_type: str = "deforestation") -> tuple[Any, torch.device]:
-    """Load (or return cached) U-Net model configured for the analysis type."""
+    """
+    Load (or return cached) segmentation model configured for the analysis type.
+
+    Backend priority (issue #12):
+      1. **ONNX Runtime** — when an exported ``.onnx`` model is present and
+         onnxruntime can load it. Faster and lower-memory for serving.
+      2. **PyTorch ``.pth`` checkpoint** — the trained weights (with EMA
+         overlay), used when no servable ONNX model exists.
+      3. **Untrained U-Net** — demo weights, so the API still responds when no
+         trained model has been provisioned.
+    """
     if analysis_type in _model_cache:
         return _model_cache[analysis_type]
 
@@ -130,8 +143,21 @@ def _load_model(analysis_type: str = "deforestation") -> tuple[Any, torch.device
     n_channels = model_cfg.get("in_channels", 4)
     n_classes = model_cfg.get("num_classes", 2)
 
-    model = UNet(n_channels=n_channels, n_classes=n_classes)
+    # 1. Prefer an exported ONNX model when one is present and loadable.
+    onnx_path = _find_onnx(analysis_type)
+    if onnx_path is not None:
+        onnx_model = _try_load_onnx(onnx_path, n_channels, n_classes)
+        if onnx_model is not None:
+            logger.info(
+                "Loaded %s model from ONNX %s (%d channels, %d classes).",
+                analysis_type, onnx_path, n_channels, n_classes,
+            )
+            onnx_model.eval()
+            _model_cache[analysis_type] = (onnx_model, device)
+            return onnx_model, device
 
+    # 2. Fall back to the PyTorch checkpoint.
+    model = UNet(n_channels=n_channels, n_classes=n_classes)
     model_path = _find_best_checkpoint(analysis_type)
     if model_path is not None:
         checkpoint = torch.load(model_path, map_location=device)
@@ -157,17 +183,7 @@ def _load_model(analysis_type: str = "deforestation") -> tuple[Any, torch.device
             checkpoint.get("val_iou", 0.0),
         )
     else:
-        onnx_path = _find_onnx(analysis_type)
-        onnx_model = _try_load_onnx(onnx_path, n_channels, n_classes) if onnx_path else None
-        if onnx_model is not None:
-            logger.info(
-                "Loaded %s model from ONNX %s (%d channels, %d classes).",
-                analysis_type, onnx_path, n_channels, n_classes,
-            )
-            onnx_model.eval()
-            _model_cache[analysis_type] = (onnx_model, device)
-            return onnx_model, device
-
+        # 3. No servable model at all — fall back to untrained demo weights.
         logger.warning(
             "No trained model found for %s under %s — using untrained weights (demo).",
             analysis_type,
@@ -214,6 +230,60 @@ def _try_load_onnx(
         return None
     input_name = session.get_inputs()[0].name
     return _ONNXSegmenter(session, n_channels, n_classes, input_name)
+
+
+def benchmark_inference(
+    analysis_type: str = "deforestation",
+    *,
+    image_size: int = 256,
+    runs: int = 20,
+) -> dict[str, Any]:
+    """
+    Time the PyTorch and ONNX backends side by side for an analysis type.
+
+    Loads an untrained PyTorch U-Net and, when available, the exported ONNX
+    model, then times a batch-1 forward pass on a dummy input. Useful for
+    verifying the speedup that motivates preferring ONNX at serve time
+    (issue #12). ``onnx_ms`` is ``None`` when no servable ONNX model exists.
+    """
+    model_cfg = get_model_config(analysis_type)
+    n_channels = model_cfg.get("in_channels", 4)
+    n_classes = model_cfg.get("num_classes", 2)
+    dummy = torch.zeros(1, n_channels, image_size, image_size)
+
+    def _time(model: Any) -> float:
+        with torch.no_grad():
+            for _ in range(3):  # warm-up
+                model(dummy)
+            t0 = time.perf_counter()
+            for _ in range(runs):
+                model(dummy)
+        return (time.perf_counter() - t0) / runs * 1000.0
+
+    pytorch_ms = _time(UNet(n_channels=n_channels, n_classes=n_classes).eval())
+
+    onnx_ms: Optional[float] = None
+    onnx_path = _find_onnx(analysis_type)
+    if onnx_path is not None:
+        onnx_model = _try_load_onnx(onnx_path, n_channels, n_classes)
+        if onnx_model is not None:
+            onnx_ms = _time(onnx_model)
+
+    speedup = round(pytorch_ms / onnx_ms, 2) if onnx_ms else None
+    result = {
+        "analysis_type": analysis_type,
+        "backend_active": "onnx" if onnx_ms is not None else "pytorch",
+        "pytorch_ms": round(pytorch_ms, 2),
+        "onnx_ms": round(onnx_ms, 2) if onnx_ms is not None else None,
+        "speedup": speedup,
+    }
+    logger.info(
+        "Backend benchmark %s: pytorch=%.1f ms onnx=%s speedup=%s",
+        analysis_type, pytorch_ms,
+        f"{onnx_ms:.1f} ms" if onnx_ms is not None else "n/a",
+        f"{speedup}x" if speedup else "n/a",
+    )
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -345,10 +415,18 @@ def run_inference(
     tensor = torch.FloatTensor(image.astype(np.float32).tolist()).unsqueeze(0)  # (1, C, H, W)
     tensor = tensor.to(device)
 
+    backend = getattr(model, "backend", "pytorch")
     with torch.no_grad():
+        _t0 = time.perf_counter()
         output = model(tensor)
+        inference_ms = (time.perf_counter() - _t0) * 1000.0
         predictions = torch.argmax(output, dim=1)  # (1, H, W)
         probabilities = torch.softmax(output, dim=1)  # (1, n_classes, H, W)
+
+    logger.info(
+        "Inference %s: backend=%s latency=%.1f ms (batch=1, %dx%d)",
+        analysis_type, backend, inference_ms, h, w,
+    )
 
     output_check = _guard.check_output(
         predictions.cpu().numpy(),
@@ -381,6 +459,8 @@ def run_inference(
         "image_size": [h, w],
         "num_classes": n_classes,
         "mean_confidence": round(mean_confidence, 4),
+        "backend": backend,
+        "inference_ms": round(inference_ms, 2),
         **class_pixels,
         **class_percentages,
     }
