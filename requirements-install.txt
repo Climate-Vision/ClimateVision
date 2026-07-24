@@ -38,7 +38,7 @@ python-multipart>=0.0.20
 
 # MLOps
 mlflow>=2.1.0
-optuna>=3.1.0
+optuna>=4.9.0
 
 # Testing and Development
 pytest>=7.0.0

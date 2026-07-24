@@ -45,7 +45,7 @@ python-multipart>=0.0.20
 
 # MLOps (optional)
 mlflow>=2.1.0
-optuna>=3.1.0
+optuna>=4.9.0
 
 # Explainability & Governance
 shap>=0.42.0
