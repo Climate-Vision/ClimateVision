@@ -71,7 +71,7 @@ export default function Upload() {
       setUploadProgress(100)
       showToast('success', `Upload complete! Run #${res.run_id} created.`, {
         label: 'View run',
-        onClick: () => navigate('/runs'),
+        onClick: () => navigate('/app/runs'),
       })
       setFile(null)
       setUploadProgress(null)
@@ -125,7 +125,7 @@ export default function Upload() {
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); setFile(null) }}
-              className="text-cv-text-dim hover:text-red-400 transition"
+              className="text-cv-text-dim hover:text-red-600 transition"
               aria-label="Remove file"
             >
               <X className="w-5 h-5" />
@@ -143,7 +143,7 @@ export default function Upload() {
       />
 
       {fileError && (
-        <div className="rounded-lg bg-red-950/40 border border-red-700/40 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {fileError}
         </div>
       )}

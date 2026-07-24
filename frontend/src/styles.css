@@ -2,27 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --color-bg-base: #0a0f0d;
-  --color-bg-surface: #111a14;
-  --color-bg-card: #162019;
-  --color-bg-card-hover: #1c2a1f;
-  --color-border: #1f3024;
-  --color-border-strong: #2d4a33;
-  --color-primary: #22c55e;
-  --color-primary-hover: #16a34a;
-  --color-primary-muted: #14532d;
-  --color-danger: #ef4444;
-  --color-danger-muted: #7f1d1d;
-  --color-warning: #f59e0b;
-  --color-warning-muted: #78350f;
-  --color-info: #3b82f6;
-  --color-text-primary: #f0fdf4;
-  --color-text-secondary: #86efac;
-  --color-text-muted: #4ade80;
-  --color-text-dim: #374151;
+/* Landing-page ambient motion (AnimatedScenes.tsx) */
+/* apply to a full-container-width wrapper; content sits at its left edge */
+@keyframes cv-drift {
+  from { transform: translateX(-45%); }
+  to { transform: translateX(105%); }
+}
+@keyframes cv-sway {
+  0%, 100% { transform: rotate(-1.6deg); }
+  50% { transform: rotate(1.6deg); }
+}
+@keyframes cv-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+/* apply to a full-container-height wrapper; content sits at its top edge */
+@keyframes cv-fall {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100%); }
+}
+@keyframes cv-bob {
+  0%, 100% { transform: translateY(6%); }
+  50% { transform: translateY(-2%); }
+}
 
-  color-scheme: dark;
+/* Ken Burns — slow zoom + pan for photographic backgrounds (GPU transforms only) */
+@keyframes cv-kenburns-a {
+  0%   { transform: scale(1.06) translate3d(0, 0, 0); }
+  50%  { transform: scale(1.20) translate3d(-2.5%, -1.8%, 0); }
+  100% { transform: scale(1.06) translate3d(0, 0, 0); }
+}
+@keyframes cv-kenburns-b {
+  0%   { transform: scale(1.08) translate3d(0, 0, 0); }
+  50%  { transform: scale(1.22) translate3d(2.2%, 1.6%, 0); }
+  100% { transform: scale(1.08) translate3d(0, 0, 0); }
+}
+@keyframes cv-kenburns-c {
+  0%   { transform: scale(1.05) translate3d(-1.5%, 1%, 0); }
+  50%  { transform: scale(1.18) translate3d(1.8%, -1.4%, 0); }
+  100% { transform: scale(1.05) translate3d(-1.5%, 1%, 0); }
+}
+.cv-kenburns-a { animation: cv-kenburns-a 32s ease-in-out infinite; will-change: transform; }
+.cv-kenburns-b { animation: cv-kenburns-b 38s ease-in-out infinite; will-change: transform; }
+.cv-kenburns-c { animation: cv-kenburns-c 30s ease-in-out infinite; will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="cv-drift"], [style*="cv-sway"], [style*="cv-wave"], [style*="cv-fall"], [style*="cv-bob"],
+  .cv-kenburns-a, .cv-kenburns-b, .cv-kenburns-c {
+    animation: none !important;
+  }
+}
+
+:root {
+  --color-bg-base: #ffffff;
+  --color-bg-surface: #f6f8f7;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #f2f5f3;
+  --color-border: #e4e9e6;
+  --color-border-strong: #cdd6d0;
+  --color-primary: #16a34a;
+  --color-primary-hover: #15803d;
+  --color-primary-muted: #dcfce7;
+  --color-danger: #dc2626;
+  --color-danger-muted: #fee2e2;
+  --color-warning: #d97706;
+  --color-warning-muted: #fef3c7;
+  --color-info: #2563eb;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+  --color-text-dim: #94a3b8;
+
+  color-scheme: light;
 }
 
 html, body {
@@ -59,12 +110,12 @@ body {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-muted);
+  background: var(--color-text-dim);
 }
 
 /* Date input styling */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7) sepia(1) saturate(2) hue-rotate(90deg);
+  filter: invert(0.35) sepia(1) saturate(3) hue-rotate(90deg);
   cursor: pointer;
 }
 
@@ -73,7 +124,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background-color: var(--color-bg-card) !important;
   border: 1px solid var(--color-border-strong) !important;
   border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12) !important;
   margin-top: 4px;
 }
 .pac-item {

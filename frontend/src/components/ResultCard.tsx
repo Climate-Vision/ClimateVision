@@ -80,10 +80,10 @@ function formatDate(dateStr?: string): string {
 
 // Get NDVI color based on value
 function getNDVIColor(value: number): string {
-  if (value >= 0.6) return 'text-brand-400'
-  if (value >= 0.3) return 'text-amber-400'
-  if (value >= 0) return 'text-orange-400'
-  return 'text-danger-400'
+  if (value >= 0.6) return 'text-brand-600'
+  if (value >= 0.3) return 'text-amber-600'
+  if (value >= 0) return 'text-orange-600'
+  return 'text-danger-500'
 }
 
 // NDVI indicator component
@@ -194,7 +194,7 @@ export function ResultCard({
       >
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 w-10 h-10 rounded-full bg-danger-500/20 flex items-center justify-center">
-            <svg className="w-5 h-5 text-danger-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 text-danger-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
@@ -203,7 +203,7 @@ export function ResultCard({
               {runId && <span className="text-sm font-medium text-base-100">Run #{runId}</span>}
               <StatusBadge status="failed" />
             </div>
-            <p className="mt-1 text-sm text-danger-400 break-words">{error}</p>
+            <p className="mt-1 text-sm text-danger-600 break-words">{error}</p>
           </div>
         </div>
       </Card>
@@ -375,7 +375,7 @@ export function CompactResultCard({
       </div>
       
       {error && (
-        <p className="mt-2 text-xs text-danger-400 truncate">{error}</p>
+        <p className="mt-2 text-xs text-danger-600 truncate">{error}</p>
       )}
     </button>
   )

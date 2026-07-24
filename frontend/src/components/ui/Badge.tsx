@@ -17,10 +17,10 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: 'bg-base-800 text-base-200',
-  success: 'bg-brand-600/20 text-brand-400 border-brand-600/30',
-  warning: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  danger: 'bg-danger-500/20 text-danger-400 border-danger-500/30',
-  info: 'bg-ocean-500/20 text-ocean-400 border-ocean-500/30',
+  success: 'bg-brand-600/15 text-brand-600 border-brand-600/30',
+  warning: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  danger: 'bg-danger-500/15 text-danger-500 border-danger-500/30',
+  info: 'bg-ocean-500/15 text-ocean-600 border-ocean-500/30',
   neutral: 'bg-base-700/50 text-base-300 border-base-600/30',
 }
 

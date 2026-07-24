@@ -3,11 +3,11 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { Map, Upload, Clock, BarChart2, Settings, ChevronLeft, ChevronRight, Leaf } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { icon: Map, label: 'New Analysis', to: '/' },
-  { icon: Upload, label: 'Upload', to: '/upload' },
-  { icon: Clock, label: 'Run History', to: '/runs' },
-  { icon: BarChart2, label: 'Analytics', to: '/analytics' },
-  { icon: Settings, label: 'Settings', to: '/settings' },
+  { icon: Map, label: 'New Analysis', to: '/app' },
+  { icon: Upload, label: 'Upload', to: '/app/upload' },
+  { icon: Clock, label: 'Run History', to: '/app/runs' },
+  { icon: BarChart2, label: 'Analytics', to: '/app/analytics' },
+  { icon: Settings, label: 'Settings', to: '/app/settings' },
 ]
 
 export function Sidebar() {
@@ -38,7 +38,7 @@ export function Sidebar() {
         <nav className="flex-1 py-4 overflow-y-auto">
           {NAV_ITEMS.map(({ icon: Icon, label, to }) => {
             const isActive =
-              to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+              to === '/app' ? location.pathname === '/app' : location.pathname.startsWith(to)
             return (
               <NavLink
                 key={to}
@@ -71,7 +71,7 @@ export function Sidebar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-cv-border bg-cv-surface">
         {NAV_ITEMS.map(({ icon: Icon, label, to }) => {
           const isActive =
-            to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+            to === '/app' ? location.pathname === '/app' : location.pathname.startsWith(to)
           return (
             <NavLink
               key={to}

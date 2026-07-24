@@ -20,22 +20,22 @@ const variantColors: Record<GaugeVariant, { stroke: string; bg: string; text: st
   forest: {
     stroke: 'stroke-brand-500',
     bg: 'stroke-brand-500/20',
-    text: 'text-brand-400',
+    text: 'text-brand-600',
   },
   ice: {
     stroke: 'stroke-ocean-500',
     bg: 'stroke-ocean-500/20',
-    text: 'text-ocean-400',
+    text: 'text-ocean-600',
   },
   water: {
     stroke: 'stroke-blue-500',
     bg: 'stroke-blue-500/20',
-    text: 'text-blue-400',
+    text: 'text-blue-600',
   },
   danger: {
     stroke: 'stroke-danger-500',
     bg: 'stroke-danger-500/20',
-    text: 'text-danger-400',
+    text: 'text-danger-500',
   },
   neutral: {
     stroke: 'stroke-base-400',

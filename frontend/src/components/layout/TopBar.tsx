@@ -40,8 +40,8 @@ export function TopBar({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onTo
             apiOk === null
               ? 'border-cv-border text-cv-text-dim'
               : apiOk
-              ? 'border-green-700/50 bg-green-950/50 text-green-400'
-              : 'border-red-700/50 bg-red-950/50 text-red-400'
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-red-200 bg-red-50 text-red-700'
           }`}
           title={apiOk === null ? 'Checking API...' : apiOk ? 'API Connected' : 'API Error'}
         >

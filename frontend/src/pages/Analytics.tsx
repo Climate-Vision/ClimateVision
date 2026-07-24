@@ -134,8 +134,8 @@ export default function Analytics() {
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="type" tick={{ fontSize: 11 }} width={90} />
                 <Tooltip
-                  contentStyle={{ background: '#162019', border: '1px solid #1f3024', borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: '#86efac' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #e4e9e6', borderRadius: 8, fontSize: 12, color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.08)' }}
+                  labelStyle={{ color: '#475569' }}
                 />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {typeData.map((d, i) => <Cell key={i} fill={d.fill} />)}
@@ -155,9 +155,9 @@ export default function Analytics() {
                 <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={3}>
                   {statusData.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Pie>
-                <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ color: '#86efac', fontSize: 12 }}>{v}</span>} />
+                <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ color: '#475569', fontSize: 12 }}>{v}</span>} />
                 <Tooltip
-                  contentStyle={{ background: '#162019', border: '1px solid #1f3024', borderRadius: 8, fontSize: 12 }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #e4e9e6', borderRadius: 8, fontSize: 12, color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.08)' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -187,11 +187,11 @@ export default function Analytics() {
         ) : (
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={timelineData}>
-              <CartesianGrid stroke="#1f3024" vertical={false} />
+              <CartesianGrid stroke="#e4e9e6" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#162019', border: '1px solid #1f3024', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: '#ffffff', border: '1px solid #e4e9e6', borderRadius: 8, fontSize: 12, color: '#0f172a', boxShadow: '0 4px 16px rgba(15,23,42,0.08)' }}
               />
               <Line type="monotone" dataKey="count" stroke="#22c55e" strokeWidth={2} dot={{ fill: '#22c55e', r: 3 }} />
             </LineChart>

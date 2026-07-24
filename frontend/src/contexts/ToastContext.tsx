@@ -32,17 +32,17 @@ const icons: Record<ToastType, typeof CheckCircle> = {
 }
 
 const styles: Record<ToastType, string> = {
-  success: 'border-green-500/40 bg-green-950/80 text-green-100',
-  error: 'border-red-500/40 bg-red-950/80 text-red-100',
-  warning: 'border-amber-500/40 bg-amber-950/80 text-amber-100',
-  info: 'border-blue-500/40 bg-blue-950/80 text-blue-100',
+  success: 'border-green-200 bg-green-50 text-green-800',
+  error: 'border-red-200 bg-red-50 text-red-800',
+  warning: 'border-amber-200 bg-amber-50 text-amber-800',
+  info: 'border-blue-200 bg-blue-50 text-blue-800',
 }
 
 const iconStyles: Record<ToastType, string> = {
-  success: 'text-green-400',
-  error: 'text-red-400',
-  warning: 'text-amber-400',
-  info: 'text-blue-400',
+  success: 'text-green-600',
+  error: 'text-red-600',
+  warning: 'text-amber-600',
+  info: 'text-blue-600',
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
