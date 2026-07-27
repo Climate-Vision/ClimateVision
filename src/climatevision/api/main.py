@@ -133,6 +133,18 @@ class PredictRequest(BaseModel):
         default=None,
         description="End date in YYYY-MM-DD format. Must be later than start_date.",
     )
+    enable_carbon: bool = Field(
+        default=False,
+        description="If true, include carbon loss estimates for deforestation runs.",
+    )
+    forest_type: Optional[str] = Field(
+        default=None,
+        description="Forest type for carbon estimation (e.g. tropical_moist, mangrove).",
+    )
+    region: Optional[str] = Field(
+        default=None,
+        description="Region for carbon estimation adjustment (e.g. amazon, congo).",
+    )
 
     @field_validator("bbox")
     @classmethod
@@ -183,6 +195,103 @@ class ResultRow(BaseModel):
     payload: dict[str, Any]
     mask_path: Optional[str] = None
     created_at: str
+
+
+# ===== Carbon analytics helpers =====
+
+
+def _extract_deforested_pixels(payload: dict[str, Any]) -> Optional[int]:
+    """Pull the deforested-pixel count from a deforestation result payload.
+
+    Returns None when the payload does not carry an inference pixel count.
+    """
+    inference = payload.get("inference")
+    if not isinstance(inference, dict):
+        return None
+    pixels = inference.get("non_forest_pixels")
+    if pixels is None:
+        return None
+    try:
+        return int(pixels)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compute_carbon_estimation(
+    payload: dict[str, Any],
+    forest_type: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Optional[dict[str, float]]:
+    """Deterministic carbon loss estimate for embedding in a predict response.
+
+    Returns None if the carbon module is unavailable or the payload lacks a
+    pixel count, so the caller can degrade gracefully.
+    """
+    pixels = _extract_deforested_pixels(payload)
+    if pixels is None:
+        return None
+    try:
+        from climatevision.analytics.carbon import estimate_carbon_loss
+
+        estimate = estimate_carbon_loss(
+            deforested_pixels=pixels,
+            forest_type=forest_type or "tropical_moist",
+            region=region or "default",
+        )
+    except Exception:
+        logger.exception("Carbon estimation failed")
+        return None
+
+    return {
+        "carbon_tonnes": estimate["carbon_tonnes"],
+        "hectares_lost": estimate["hectares"],
+        "co2_equivalent": estimate["co2_equivalent"],
+        "forest_type": forest_type or "tropical_moist",
+        "region": region or "default",
+    }
+
+
+def _validate_forest_type(forest_type: Optional[str]) -> None:
+    """Reject an unknown forest_type instead of silently defaulting.
+
+    A typo such as ``tropical-moist`` (hyphen) would otherwise fall through
+    to a generic biomass density and return plausible-looking but wrong
+    numbers with a 200 OK.
+    """
+    if forest_type is None:
+        return
+    from climatevision.analytics.carbon import AGB_DENSITY
+
+    if forest_type not in AGB_DENSITY:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown forest_type '{forest_type}'. "
+                f"Valid values: {sorted(AGB_DENSITY)}"
+            ),
+        )
+
+
+def _validate_region(region: Optional[str]) -> None:
+    """Reject an unknown region instead of silently applying no adjustment.
+
+    An unmatched region (e.g. ``Amazon`` capitalised, or ``amazon `` with a
+    trailing space) would otherwise fall back to a 1.0 factor and return a
+    confident-looking number that is wrong by the real regional adjustment.
+    Since these figures are meant to be cited, fail loudly instead.
+    """
+    if region is None:
+        return
+    from climatevision.analytics.carbon import REGIONAL_FACTORS
+
+    if region not in REGIONAL_FACTORS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown region '{region}'. "
+                f"Valid values: {sorted(REGIONAL_FACTORS)}"
+            ),
+        )
 
 
 # Organization models
@@ -669,6 +778,78 @@ def create_app() -> FastAPI:
             },
         }
 
+    @app.get("/api/reports/{run_id}")
+    def get_report(run_id: int) -> dict[str, Any]:
+        """Structured carbon impact report for a completed deforestation run.
+
+        Recomputes the estimate (with uncertainty bounds) from the stored
+        pixel count, so it works whether or not carbon was requested at
+        prediction time.
+        """
+        with get_connection() as conn:
+            run = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+            if run is None:
+                raise HTTPException(status_code=404, detail="Run not found")
+            result = conn.execute(
+                "SELECT * FROM results WHERE run_id = ? ORDER BY id DESC LIMIT 1", (run_id,)
+            ).fetchone()
+
+        if result is None:
+            raise HTTPException(status_code=404, detail="No result available for run")
+
+        payload = json.loads(result["payload_json"])
+        if payload.get("analysis_type") != "deforestation":
+            raise HTTPException(
+                status_code=400,
+                detail="Impact reports are only available for deforestation runs",
+            )
+
+        pixels = _extract_deforested_pixels(payload)
+        if pixels is None:
+            raise HTTPException(
+                status_code=422, detail="Result payload has no pixel count to report on"
+            )
+
+        # Reuse the forest_type/region chosen at prediction time so the report
+        # and the /api/predict response describe the same run. Falling back to
+        # the estimator defaults keeps reports working for runs saved before
+        # carbon was requested.
+        carbon_meta = payload.get("carbon_estimation") or {}
+        forest_type = carbon_meta.get("forest_type", "tropical_moist")
+        region = carbon_meta.get("region", "default")
+        _validate_forest_type(forest_type)
+        _validate_region(region)
+
+        try:
+            from climatevision.analytics.carbon import CarbonEstimator
+
+            estimator = CarbonEstimator(forest_type=forest_type, region=region)
+            estimate = estimator.estimate_from_pixel_count(pixels)
+        except Exception as exc:
+            logger.exception("Impact report generation failed for run %s", run_id)
+            raise HTTPException(
+                status_code=503, detail="Carbon analytics unavailable"
+            ) from exc
+
+        region_bbox = json.loads(run["bbox"]) if run["bbox"] else None
+
+        return {
+            "run_id": run_id,
+            "hectares_lost": estimate.hectares,
+            "biomass_tonnes": estimate.biomass_tonnes,
+            "carbon_tonnes": estimate.carbon_tonnes,
+            "co2_equivalent": estimate.co2_equivalent,
+            "confidence_interval": {
+                "lower": estimate.ci_lower,
+                "upper": estimate.ci_upper,
+                "uncertainty_pct": estimate.uncertainty_pct,
+                "unit": "tCO2e",
+            },
+            "region_bbox": region_bbox,
+            "forest_type": estimate.forest_type,
+            "region": estimate.region,
+        }
+
     # ===== Prediction Endpoints =====
 
     @app.post("/api/predict")
@@ -677,6 +858,10 @@ def create_app() -> FastAPI:
         org: dict[str, Any] = Depends(require_api_key),
     ) -> dict[str, Any]:
         """Run prediction using bounding box and date range."""
+        if body.enable_carbon:
+            _validate_forest_type(body.forest_type)
+            _validate_region(body.region)
+
         created_at = _utc_now_iso()
         bbox_json = json.dumps(body.bbox) if body.bbox else None
 
@@ -727,6 +912,21 @@ def create_app() -> FastAPI:
             )
             result_payload["error"] = str(exc)
             status = "failed"
+
+        # Carbon estimation (feature-flagged). Degrades gracefully if the
+        # analytics module is unavailable or the payload lacks pixel counts.
+        if (
+            body.enable_carbon
+            and status == "completed"
+            and body.analysis_type == "deforestation"
+        ):
+            carbon = _compute_carbon_estimation(
+                result_payload,
+                forest_type=body.forest_type,
+                region=body.region,
+            )
+            if carbon is not None:
+                result_payload["carbon_estimation"] = carbon
 
         # Persist result
         result_created_at = _utc_now_iso()
