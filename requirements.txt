@@ -41,7 +41,7 @@ fastapi>=0.95.0
 uvicorn[standard]>=0.20.0
 pydantic>=2.0.0
 email-validator>=2.3.0
-python-multipart>=0.0.20
+python-multipart>=0.0.32
 
 # MLOps (optional)
 mlflow>=2.1.0
