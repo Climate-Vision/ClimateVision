@@ -23,7 +23,19 @@ from contextlib import asynccontextmanager
 
 from pydantic import field_validator
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Query, Depends, Request
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    Header,
+    Query,
+    Depends,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -52,6 +64,7 @@ from climatevision.api.auth import require_api_key
 from climatevision.governance import explain_prediction, SHAPExplainer
 from climatevision.security.api_security import SecurityMiddleware
 from climatevision.workers.alert_delivery import AlertDeliveryWorker
+from climatevision.api.run_events import build_status_event, run_event_hub
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +130,71 @@ SUPPORTED_ANALYSIS_TYPES: list[dict[str, Any]] = [
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# ===== Run Status Streaming =====
+
+# Statuses after which no further updates are expected, so the socket closes.
+TERMINAL_RUN_STATUSES = frozenset({"completed", "failed"})
+
+# Application-defined close code for "the requested run does not exist".
+# The 4000-4999 range is reserved for application use by RFC 6455.
+WS_RUN_NOT_FOUND = 4404
+
+
+def _read_run_status(
+    run_id: int,
+) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    """Read a run's current status and latest result payload.
+
+    Args:
+        run_id: The run to read.
+
+    Returns:
+        A ``(status, result_payload)`` pair, or ``None`` if no such run exists.
+        The payload is ``None`` when the run has not produced a result yet.
+    """
+    with get_connection() as conn:
+        run = conn.execute(
+            "SELECT status FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        if run is None:
+            return None
+        result = conn.execute(
+            "SELECT payload_json FROM results WHERE run_id = ? ORDER BY id DESC LIMIT 1",
+            (run_id,),
+        ).fetchone()
+
+    payload: Optional[dict[str, Any]] = None
+    if result is not None:
+        payload = json.loads(result["payload_json"])
+    return run["status"], payload
+
+
+def _status_event_for(
+    run_id: int, status: str, result_payload: Optional[dict[str, Any]]
+) -> dict[str, Any]:
+    """Build a status event, routing the payload to ``result`` or ``error``.
+
+    A failed run stores its message under ``error`` inside the result payload,
+    so surface that as the event's ``error`` field rather than as a result.
+
+    Args:
+        run_id: The run the event describes.
+        status: The run's current status.
+        result_payload: The stored result payload, if any.
+
+    Returns:
+        The event dictionary to send over the WebSocket.
+    """
+    if status == "failed":
+        error = None
+        if result_payload is not None:
+            error = result_payload.get("error")
+        return build_status_event(run_id, status, error=error or "Inference failed")
+    if status == "completed":
+        return build_status_event(run_id, status, result=result_payload)
+    return build_status_event(run_id, status)
 
 
 # ===== Request/Response Models =====
@@ -778,6 +856,51 @@ def create_app() -> FastAPI:
             },
         }
 
+    @app.websocket("/ws/runs/{run_id}")
+    async def watch_run(websocket: WebSocket, run_id: int) -> None:
+        """Stream status updates for a single run.
+
+        On connect the current status is read from the database and sent
+        immediately, so a client attaching to an already-finished run still
+        receives a terminal event. If the run is still in progress the socket
+        then streams transitions until it reaches ``completed``/``failed``,
+        and closes once a terminal status has been delivered.
+        """
+        await websocket.accept()
+
+        # Subscribe before the initial read, otherwise a transition happening
+        # between the read and the subscribe would be missed entirely.
+        async with run_event_hub.subscribe(run_id) as queue:
+            snapshot = _read_run_status(run_id)
+            if snapshot is None:
+                await websocket.send_json(
+                    {"type": "error", "run_id": run_id, "error": "Run not found"}
+                )
+                await websocket.close(code=WS_RUN_NOT_FOUND)
+                return
+
+            status, result_payload = snapshot
+            await websocket.send_json(
+                _status_event_for(run_id, status, result_payload)
+            )
+            if status in TERMINAL_RUN_STATUSES:
+                await websocket.close()
+                return
+
+            try:
+                while True:
+                    event = await queue.get()
+                    await websocket.send_json(event)
+                    if event.get("status") in TERMINAL_RUN_STATUSES:
+                        break
+            except WebSocketDisconnect:
+                # Client went away mid-run; the subscription is released by
+                # the context manager, nothing else to clean up.
+                logger.debug("WebSocket client disconnected from run %s", run_id)
+                return
+
+            await websocket.close()
+
     @app.get("/api/reports/{run_id}")
     def get_report(run_id: int) -> dict[str, Any]:
         """Structured carbon impact report for a completed deforestation run.
@@ -943,6 +1066,10 @@ def create_app() -> FastAPI:
                 (run_id, json.dumps(result_payload), None, result_created_at),
             )
 
+        await run_event_hub.publish(
+            run_id, _status_event_for(run_id, status, result_payload)
+        )
+
         return {"run_id": run_id, "result": result_payload}
 
     @app.post("/api/predict/upload")
@@ -1026,6 +1153,10 @@ def create_app() -> FastAPI:
                 """,
                 (run_id, json.dumps(result_payload), None, result_created_at),
             )
+
+        await run_event_hub.publish(
+            run_id, _status_event_for(run_id, status, result_payload)
+        )
 
         return {"run_id": run_id, "result": result_payload}
 
