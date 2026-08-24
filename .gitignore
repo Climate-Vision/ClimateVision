@@ -20,6 +20,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# The Python `lib/` rule above unintentionally matches the frontend's
+# application source directory — keep it tracked.
+!frontend/src/lib/
+
 # Virtual Environment
 venv/
 env/

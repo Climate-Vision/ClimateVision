@@ -98,9 +98,9 @@ export default function RunHistory() {
           <div className="flex flex-wrap gap-2 mt-3">
             {([
               { label: `Total ${stats.total}`, filter: 'all' as StatusFilter, classes: 'border-cv-border text-cv-text-secondary' },
-              { label: `Completed ${stats.completed}`, filter: 'completed' as StatusFilter, classes: 'border-green-700/40 text-green-400' },
-              { label: `Failed ${stats.failed}`, filter: 'failed' as StatusFilter, classes: 'border-red-700/40 text-red-400' },
-              { label: `Running ${stats.running}`, filter: 'running' as StatusFilter, classes: 'border-amber-700/40 text-amber-400' },
+              { label: `Completed ${stats.completed}`, filter: 'completed' as StatusFilter, classes: 'border-green-300 text-green-700' },
+              { label: `Failed ${stats.failed}`, filter: 'failed' as StatusFilter, classes: 'border-red-300 text-red-700' },
+              { label: `Running ${stats.running}`, filter: 'running' as StatusFilter, classes: 'border-amber-300 text-amber-700' },
             ]).map(({ label, filter, classes }) => (
               <button
                 key={filter}
@@ -174,7 +174,7 @@ export default function RunHistory() {
               action={
                 runs.length === 0 ? (
                   <button
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/app')}
                     className="px-4 py-2 rounded-lg bg-cv-primary-muted text-cv-primary text-sm font-medium hover:bg-green-800/40 transition"
                   >
                     New Analysis
@@ -243,7 +243,7 @@ export default function RunHistory() {
                   <ResultsPanel
                     run={selectedRunData.run}
                     payload={selectedRunData.result?.payload as Record<string, unknown> | null ?? null}
-                    onRunAgain={() => navigate('/')}
+                    onRunAgain={() => navigate('/app')}
                   />
                 </ErrorBoundary>
               ) : null}

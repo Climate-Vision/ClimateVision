@@ -112,8 +112,8 @@ export function ResultsPanel({ run, payload, onRunAgain }: ResultsPanelProps) {
           <span className="text-sm font-semibold text-cv-text-primary">Run #{run.id}</span>
           <StatusBadge status={run.status} />
         </div>
-        <div className="bg-red-950/30 border border-red-700/40 rounded-xl p-4">
-          <p className="text-sm text-red-300">{payload.error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm text-red-700">{payload.error}</p>
         </div>
         {onRunAgain && (
           <button onClick={onRunAgain} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cv-card border border-cv-border text-sm text-cv-text-secondary hover:text-cv-text-primary transition">
@@ -185,7 +185,7 @@ export function ResultsPanel({ run, payload, onRunAgain }: ResultsPanelProps) {
             ].map(({ label, value }) => (
               <div key={label}>
                 <div className="text-xs text-cv-text-dim">{label}</div>
-                <div className={`text-base font-semibold ${value >= 0.3 ? 'text-cv-primary' : value >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                <div className={`text-base font-semibold ${value >= 0.3 ? 'text-cv-primary' : value >= 0 ? 'text-amber-600' : 'text-red-600'}`}>
                   {value.toFixed(3)}
                 </div>
               </div>

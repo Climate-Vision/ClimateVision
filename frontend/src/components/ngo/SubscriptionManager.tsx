@@ -76,7 +76,7 @@ export function SubscriptionManager({
         onAdd && (
           <button
             onClick={onAdd}
-            className="px-3 py-1.5 text-xs font-medium text-base-100 bg-brand-600 hover:bg-brand-500 rounded-lg transition"
+            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition"
           >
             + Add Region
           </button>
@@ -91,7 +91,7 @@ export function SubscriptionManager({
           <span className="font-medium text-base-100">{subscriptions.length}</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-brand-400">Active:</span>
+          <span className="text-brand-600">Active:</span>
           <span className="font-medium text-base-100">{activeCount}</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -118,7 +118,7 @@ export function SubscriptionManager({
           {onAdd && (
             <button
               onClick={onAdd}
-              className="mt-3 px-4 py-2 text-sm font-medium text-brand-400 hover:text-brand-300 bg-brand-600/10 hover:bg-brand-600/20 rounded-lg transition"
+              className="mt-3 px-4 py-2 text-sm font-medium text-brand-600 hover:text-brand-700 bg-brand-600/10 hover:bg-brand-600/20 rounded-lg transition"
             >
               Add your first region
             </button>
@@ -235,8 +235,8 @@ export function SubscriptionManager({
                           className={cx(
                             'px-3 py-1.5 text-xs font-medium rounded-lg transition',
                             sub.active
-                              ? 'text-amber-400 bg-amber-600/10 hover:bg-amber-600/20'
-                              : 'text-brand-400 bg-brand-600/10 hover:bg-brand-600/20',
+                              ? 'text-amber-700 bg-amber-600/10 hover:bg-amber-600/20'
+                              : 'text-brand-600 bg-brand-600/10 hover:bg-brand-600/20',
                           )}
                         >
                           {sub.active ? 'Pause Monitoring' : 'Resume Monitoring'}
@@ -260,7 +260,7 @@ export function SubscriptionManager({
                               onDelete(sub.id)
                             }
                           }}
-                          className="px-3 py-1.5 text-xs font-medium text-danger-400 hover:text-danger-300 bg-danger-600/10 hover:bg-danger-600/20 rounded-lg transition"
+                          className="px-3 py-1.5 text-xs font-medium text-danger-600 hover:text-danger-700 bg-danger-600/10 hover:bg-danger-600/20 rounded-lg transition"
                         >
                           Delete
                         </button>
@@ -376,7 +376,7 @@ export function SubscriptionForm({
               className={cx(
                 'px-3 py-1.5 text-xs font-medium rounded-lg border transition',
                 formData.analysis_types.includes(option.value)
-                  ? 'bg-brand-600/20 border-brand-600/40 text-brand-400'
+                  ? 'bg-brand-600/20 border-brand-600/40 text-brand-600'
                   : 'bg-base-800/50 border-base-700 text-base-400 hover:text-base-200',
               )}
             >
@@ -458,7 +458,7 @@ export function SubscriptionForm({
         <button
           type="submit"
           disabled={loading || formData.analysis_types.length === 0}
-          className="px-4 py-2 text-sm font-medium text-base-100 bg-brand-600 hover:bg-brand-500 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Saving...' : 'Save Subscription'}
         </button>

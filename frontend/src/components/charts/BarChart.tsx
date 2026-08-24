@@ -152,7 +152,7 @@ export function ComparisonBar({
           <span
             className={cx(
               'text-xs font-medium',
-              diff > 0 ? 'text-brand-400' : diff < 0 ? 'text-danger-400' : 'text-base-400',
+              diff > 0 ? 'text-brand-600' : diff < 0 ? 'text-danger-600' : 'text-base-400',
             )}
           >
             {diff > 0 ? '+' : ''}{diffPercent}%

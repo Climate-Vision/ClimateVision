@@ -83,7 +83,7 @@ export default function NewAnalysis() {
       })
       showToast('success', `Run #${res.run_id} complete!`, {
         label: 'View in history',
-        onClick: () => navigate('/runs'),
+        onClick: () => navigate('/app/runs'),
       })
     } catch (e) {
       showToast('error', String(e))

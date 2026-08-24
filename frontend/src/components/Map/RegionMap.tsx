@@ -194,11 +194,11 @@ export function RegionMap({
         onMouseLeave={handleMouseUp}
       >
         {/* Ocean background */}
-        <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} fill="#1a1f2e" />
+        <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} fill="#dbeafe" />
         
         {/* Grid lines */}
         {showGrid && (
-          <g stroke="#2a3040" strokeWidth={0.2}>
+          <g stroke="#b6c6dd" strokeWidth={0.2}>
             {/* Latitude lines */}
             {[-60, -30, 0, 30, 60].map((lat) => (
               <line
@@ -223,7 +223,7 @@ export function RegionMap({
         )}
         
         {/* Continents */}
-        <g fill="#3a4050" stroke="#4a5060" strokeWidth={0.3}>
+        <g fill="#d7e0d5" stroke="#aeb9ac" strokeWidth={0.3}>
           {CONTINENTS.map((path, i) => (
             <path key={i} d={path} />
           ))}

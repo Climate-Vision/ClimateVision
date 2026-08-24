@@ -134,10 +134,11 @@ export function MapBBoxPicker({ value, onChange, apiKey }: MapBBoxPickerProps) {
       fullscreenControl: false,
       zoomControl: true,
       styles: [
-        { elementType: 'geometry', stylers: [{ color: '#1a2e20' }] },
-        { elementType: 'labels.text.fill', stylers: [{ color: '#86efac' }] },
-        { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0f0d' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0c2340' }] },
+        { elementType: 'geometry', stylers: [{ color: '#f4f7f5' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#475569' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#d6e6f2' }] },
+        { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#e8efe9' }] },
         { featureType: 'road', stylers: [{ visibility: 'simplified' }] },
       ],
     })
@@ -366,7 +367,7 @@ export function MapBBoxPicker({ value, onChange, apiKey }: MapBBoxPickerProps) {
           {value && (
             <button
               onClick={clearRectangle}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-cv-surface border border-red-800/40 text-red-400 hover:bg-red-950/40 transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-cv-surface border border-red-200 text-red-600 hover:bg-red-50 transition"
             >
               <Trash2 className="w-3 h-3" />
               Clear
