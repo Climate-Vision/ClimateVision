@@ -131,8 +131,14 @@ class CarbonEstimator:
 
         Returns:
             CarbonEstimate with carbon loss and uncertainty bounds
+
+        Raises:
+            ValueError: If deforested_pixels is negative
         """
         deforested_pixels = int(deforested_pixels)
+        if deforested_pixels < 0:
+            raise ValueError("deforested_pixels must not be negative")
+
         pixel_area_ha = (self.pixel_size_m ** 2) / 10000
         hectares = deforested_pixels * pixel_area_ha
 

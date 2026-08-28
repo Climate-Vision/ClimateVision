@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from climatevision.analytics.carbon import estimate_carbon_loss
+from climatevision.analytics.carbon import CarbonEstimator, estimate_carbon_loss
 
 # A 100x100 patch of 10 m pixels = 10,000 px = 100 ha. With tropical_moist
 # defaults these values are fully determined:
@@ -46,12 +46,25 @@ def test_pixel_count_matches_mask() -> None:
     """estimate_from_pixel_count must equal estimate_from_mask without the array."""
     import numpy as np
 
-    from climatevision.analytics.carbon import CarbonEstimator
-
     estimator = CarbonEstimator()
     from_count = estimator.estimate_from_pixel_count(KNOWN_PIXELS)
     from_mask = estimator.estimate_from_mask(np.ones(KNOWN_PIXELS, dtype=np.uint8))
     assert from_count == from_mask
+
+
+def test_zero_deforested_pixels_has_zero_carbon_loss() -> None:
+    """Zero detected pixels is a valid no-loss result."""
+    estimate = CarbonEstimator().estimate_from_pixel_count(0)
+
+    assert estimate.hectares == 0
+    assert estimate.carbon_tonnes == 0
+    assert estimate.co2_equivalent == 0
+
+
+def test_negative_deforested_pixel_count_is_rejected() -> None:
+    """A pixel count cannot represent a negative area or carbon loss."""
+    with pytest.raises(ValueError, match="deforested_pixels must not be negative"):
+        CarbonEstimator().estimate_from_pixel_count(-1)
 
 
 def test_predict_without_flag_omits_carbon(
