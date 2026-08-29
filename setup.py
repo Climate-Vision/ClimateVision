@@ -36,7 +36,7 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "numpy>=1.21.0,<2.0.0",
+        "numpy>=1.21.0,<3.0.0",
         "pandas>=1.3.0",
         "torch>=2.0.0",
         "torchvision>=0.15.0",
