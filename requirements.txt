@@ -25,7 +25,7 @@ plotly>=6.9.0
 
 # Utilities
 tqdm>=4.62.0
-pyyaml>=6.0
+pyyaml>=6.0.3
 requests>=2.26.0
 python-dotenv>=0.19.0
 
