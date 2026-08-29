@@ -11,7 +11,7 @@ shapely>=2.1.2
 pyproj>=3.7.1
 
 # Computer Vision
-opencv-python>=4.5.0
+opencv-python>=5.0.0.93
 pillow>=9.0.0
 albumentations>=2.0.8
 
