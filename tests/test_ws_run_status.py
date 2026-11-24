@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from climatevision.api.main import WS_RUN_NOT_FOUND
+from climatevision.api.routes.runs import WS_RUN_NOT_FOUND
 from climatevision.api.run_events import (
     RunEventHub,
     build_status_event,
@@ -199,7 +199,7 @@ def test_predict_publishes_a_completed_event(
 
     fake_result = {"inference": {"forest_percentage": 72.3}}
     with patch(
-        "climatevision.api.main.run_inference_from_gee", return_value=fake_result
+        "climatevision.api.routes.predict.run_inference_from_gee", return_value=fake_result
     ):
         response = client.post(
             "/api/predict",
@@ -234,7 +234,7 @@ def test_predict_publishes_a_failed_event_when_inference_raises(
     monkeypatch.setattr(run_event_hub, "publish", record)
 
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         side_effect=RuntimeError("GEE unavailable"),
     ):
         response = client.post(
