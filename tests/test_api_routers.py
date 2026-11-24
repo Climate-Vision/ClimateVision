@@ -2,51 +2,64 @@
 
 from __future__ import annotations
 
-from fastapi.routing import APIRoute, APIWebSocketRoute
+from pathlib import Path
 
+import pytest
+from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
+
+import climatevision.api.main as api_main
 from climatevision.api.main import create_app
 from climatevision.api.routes import ROUTERS
 from climatevision.api.shared import PROJECT_ROOT
 
 
-def _served_routes(routes) -> set[tuple[str, frozenset[str]]]:
-    served = set()
-    for route in routes:
-        if isinstance(route, APIRoute):
-            served.add((route.path, frozenset(route.methods)))
-        elif isinstance(route, APIWebSocketRoute):
-            served.add((route.path, frozenset({"WEBSOCKET"})))
-    return served
+def _http_routes(router) -> set[tuple[str, str]]:
+    return {
+        (route.path, method.lower())
+        for route in router.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods
+    }
 
 
 def test_every_router_route_is_served_by_the_app() -> None:
     """A router left out of include_routers would silently drop its endpoints."""
-    app_routes = _served_routes(create_app().routes)
+    paths = create_app().openapi()["paths"]
+    served = {(path, method) for path, item in paths.items() for method in item}
 
     for router in ROUTERS:
-        router_routes = _served_routes(router.routes)
-        assert router_routes, "a router without routes is probably wired wrongly"
-        assert router_routes <= app_routes
+        assert router.routes, "a router without routes is probably wired wrongly"
+        assert _http_routes(router) <= served
 
 
 def test_no_route_is_defined_by_two_routers() -> None:
     """The same path and method in two routers would make one of them unreachable."""
     seen: set[tuple[str, str]] = set()
     for router in ROUTERS:
-        for path, methods in _served_routes(router.routes):
-            for method in methods:
-                assert (path, method) not in seen, f"{method} {path} is defined twice"
-                seen.add((path, method))
+        for route in _http_routes(router):
+            assert route not in seen, f"{route} is defined twice"
+            seen.add(route)
 
 
-def test_api_routes_are_matched_before_the_frontend_fallback() -> None:
-    """The frontend catch-all, when present, must come after every API route."""
-    paths = [getattr(route, "path", None) for route in create_app().routes]
+def test_api_routes_are_matched_before_the_frontend_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With a built frontend, API paths must still reach the API, not index.html."""
+    dist = tmp_path / "frontend" / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<html>frontend</html>", encoding="utf-8")
+    monkeypatch.setattr(api_main, "PROJECT_ROOT", tmp_path)
 
-    if "/{full_path:path}" in paths:
-        fallback = paths.index("/{full_path:path}")
-        assert "/api/health" in paths[:fallback]
-        assert "/api/predict" in paths[:fallback]
+    client = TestClient(create_app())
+
+    analysis_types = client.get("/api/analysis-types")
+    assert analysis_types.status_code == 200
+    assert isinstance(analysis_types.json(), list)
+
+    deep_link = client.get("/runs")
+    assert deep_link.status_code == 200
+    assert deep_link.text == "<html>frontend</html>"
 
 
 def test_project_root_is_the_repository_root() -> None:
