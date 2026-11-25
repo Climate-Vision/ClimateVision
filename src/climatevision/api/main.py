@@ -810,9 +810,13 @@ def create_app() -> FastAPI:
                 "AND created_at >= datetime('now', '-7 days')"
             ).fetchone()[0]
 
-            alerts_total = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+            # Alerts are created and acknowledged in organization_alerts; the
+            # legacy alerts table has no acknowledged column.
+            alerts_total = conn.execute(
+                "SELECT COUNT(*) FROM organization_alerts"
+            ).fetchone()[0]
             alerts_unacknowledged = conn.execute(
-                "SELECT COUNT(*) FROM alerts WHERE acknowledged = 0"
+                "SELECT COUNT(*) FROM organization_alerts WHERE acknowledged = 0"
             ).fetchone()[0]
 
         return {
