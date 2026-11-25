@@ -68,7 +68,7 @@ def test_predict_valid_date_range_reaches_inference(
         "analysis_type": "deforestation",
     }
     with patch(
-        "climatevision.api.main.run_inference_from_gee", return_value=fake_result
+        "climatevision.api.routes.predict.run_inference_from_gee", return_value=fake_result
     ) as mock_infer:
         response = client.post(
             "/api/predict",

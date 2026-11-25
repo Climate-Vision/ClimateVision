@@ -60,7 +60,7 @@ def test_predict_without_flag_omits_carbon(
     """Carbon block is absent unless enable_carbon is set."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         response = client.post(
@@ -81,7 +81,7 @@ def test_predict_with_flag_includes_carbon(
     """enable_carbon adds a carbon_estimation block with correct figures."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         response = client.post(
@@ -106,7 +106,7 @@ def test_report_endpoint_returns_impact_report(
     """GET /api/reports/{run_id} returns a complete impact report."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         predict = client.post(
@@ -153,7 +153,7 @@ def test_report_respects_predict_forest_type(
     """
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         predict = client.post(
@@ -187,7 +187,7 @@ def test_report_confidence_interval_is_labelled_co2e(
     """The confidence interval must declare its unit (tCO2e), not sit unlabelled."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         predict = client.post(
@@ -210,7 +210,7 @@ def test_predict_rejects_unknown_forest_type(
     """A typo'd forest_type must 422, not silently fall back to a default."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         response = client.post(
@@ -232,7 +232,7 @@ def test_predict_rejects_unknown_region(
     """An unmatched region must 422 rather than silently applying a 1.0 factor."""
     monkeypatch.setenv("CLIMATEVISION_ALLOW_DEV_KEY", "1")
     with patch(
-        "climatevision.api.main.run_inference_from_gee",
+        "climatevision.api.routes.predict.run_inference_from_gee",
         return_value=_deforestation_payload(),
     ):
         response = client.post(
